@@ -12,13 +12,15 @@ from src.data.make_dataset import DATE_COLUMNS, CAT_COLUMNS
 project_dir = Path(__file__).resolve().parents[2]
 
 
-def main(input_filepath, output_filepath):
-    input_filename = os.path.join(input_filepath, 'Train_df.pck')
+def main(input_file_path, output_file_path):
+    input_filename = os.path.join(input_file_path, 'Train_df.pck')
+    output_file_name = os.path.join(output_file_path, 'train_final.pck')
     df = pd.read_pickle(input_filename)
     for col in DATE_COLUMNS:
         df[col] = (df[col] - pd.to_datetime('1970-01-01')).dt.total_seconds()
-    print(df.sample(10))
+    df.to_pickle(output_file_name)
     return df
+
 
 if __name__ == '__main__':
     log_fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -28,9 +30,10 @@ if __name__ == '__main__':
 
     # find .env automagically by walking up directories until it's found, then
     # load up the .env entries as environment variables
-    input_filepath = os.path.join(project_dir, 'data', 'processed')
-    output_filepath = os.path.join(project_dir, 'data', 'final')
-    os.makedirs(input_filepath, exist_ok=True)
-    os.makedirs(output_filepath, exist_ok=True)
+    input_file_path = os.path.join(project_dir, 'data', 'processed')
+    output_file_path = os.path.join(project_dir, 'data', 'final')
+    os.makedirs(input_file_path, exist_ok=True)
+    os.makedirs(output_file_path, exist_ok=True)
 
-    df = main(input_filepath, output_filepath)
+    df = main(input_file_path, output_file_path)
+    print(df.columns)
