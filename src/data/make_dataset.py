@@ -9,6 +9,44 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 
+
+from sklearn.preprocessing import LabelEncoder
+import numpy as np
+
+
+class LabelEncoderExt(object):
+    def __init__(self):
+        """
+        It differs from LabelEncoder by handling new classes and providing a value for it [Unknown]
+        Unknown will be added in fit and transform will take care of new item. It gives unknown class id
+        """
+        self.label_encoder = LabelEncoder()
+        # self.classes_ = self.label_encoder.classes_
+
+    def fit(self, data_list):
+        """
+        This will fit the encoder for all the unique values and introduce unknown value
+        :param data_list: A list of string
+        :return: self
+        """
+        self.label_encoder = self.label_encoder.fit(list(data_list) + ['Unknown'])
+        self.classes_ = self.label_encoder.classes_
+
+        return self
+
+    def transform(self, data_list):
+        """
+        This will transform the data_list to id list where the new values get assigned to Unknown class
+        :param data_list:
+        :return:
+        """
+        new_data_list = list(data_list)
+        for unique_item in np.unique(data_list):
+            if unique_item not in self.label_encoder.classes_:
+                new_data_list = ['Unknown' if x==unique_item else x for x in new_data_list]
+
+        return self.label_encoder.transform(new_data_list)
+
 pd.set_option('display.width', 1800)
 pd.set_option('display.max_columns', 10)
 
@@ -75,7 +113,7 @@ def preprocess_table(input_file_path, output_file_path):
     for cat in CAT_COLUMNS:
         logger.info(f'to category: {cat}')
         df_full_train[cat] = df_full_train[cat].astype(str)
-        label_encoder = LabelEncoder()
+        label_encoder = LabelEncoderExt()
         label_encoder.fit(df_full_train[cat])
         # Encode train and test
         df_full_train[cat] = label_encoder.transform(df_full_train[cat])

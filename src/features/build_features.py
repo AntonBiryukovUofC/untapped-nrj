@@ -12,10 +12,12 @@ from src.data.make_dataset import DATE_COLUMNS, CAT_COLUMNS
 project_dir = Path(__file__).resolve().parents[2]
 
 
-def main(input_file_path, output_file_path):
-    input_filename = os.path.join(input_file_path, 'Train_df.pck')
-    output_file_name = os.path.join(output_file_path, 'train_final.pck')
+def build_features(input_file_path, output_file_path, suffix="Train"):
+    input_filename = os.path.join(input_file_path, f'{suffix}_df.pck')
+    output_file_name = os.path.join(output_file_path, f'{suffix}_final.pck')
+
     df = pd.read_pickle(input_filename)
+
     for col in DATE_COLUMNS:
         df[col] = (df[col] - pd.to_datetime('1970-01-01')).dt.total_seconds()
     df.to_pickle(output_file_name)
@@ -35,5 +37,7 @@ if __name__ == '__main__':
     os.makedirs(input_file_path, exist_ok=True)
     os.makedirs(output_file_path, exist_ok=True)
 
-    df = main(input_file_path, output_file_path)
+    df = build_features(input_file_path, output_file_path,suffix='Train')
+    df = build_features(input_file_path, output_file_path, suffix='Test')
+
     print(df.columns)
