@@ -8,6 +8,7 @@ import pandas as pd
 import random
 import numpy as np
 import pandas_profiling as pp
+import pickle
 from sklearn.preprocessing import LabelEncoder
 pd.set_option('display.width', 1800)
 pd.set_option('display.max_columns',10)
@@ -43,6 +44,9 @@ def main(input_filepath, output_filepath,suffix = 'Train'):
     logger.info('making final data set from raw data')
     target_df = pd.read_csv(os.path.join(input_filepath,f'Viking - {suffix}.txt'),nrows=20)
     feature_df = pd.read_csv(os.path.join(input_filepath, f'Header - {suffix.lower()}.txt'))
+    output_filepath_df = os.path.join(output_filepath,f'{suffix}_df.pck')
+    output_filepath_misc = os.path.join(output_filepath, f'{suffix}_misc.pck')
+
     # subset cols:
     cols =COLS_TO_KEEP.split(',')
     feature_df = feature_df.loc[:, cols]
@@ -50,16 +54,23 @@ def main(input_filepath, output_filepath,suffix = 'Train'):
     # Clip to max of 35 days of drilling (?)
     feature_df['DaysDrilling'] = np.clip(feature_df['DaysDrilling'],a_min=None,a_max=35)
     for c in DATE_COLUMNS:
+        logger.info(f'to DT: {c}')
         feature_df[c] = pd.to_datetime(feature_df[c])
     for cat in CAT_COLUMNS:
+        logger.info(f'to category: {cat}')
         label_encoder = LabelEncoder()
-        feature_df[cat] = label_encoder.fit_transform(feature_df[cat])
+        feature_df[cat] = label_encoder.fit_transform(feature_df[cat].astype(str))
         encoders[cat] = label_encoder
 
 
-
+    misc = {}
+    misc['encoder_dict'] = encoders
     #profile = feature_df.profile_report(title=f'Pandas Profiling Report for {suffix}')
     #profile.to_file(output_file=os.path.join(project_dir, f"output_{suffix}.html"))
+
+    feature_df.to_pickle(output_filepath_df)
+    with open(output_filepath_misc,'wb') as f:
+        pickle.dump(misc,f)
 
     return 0
 
