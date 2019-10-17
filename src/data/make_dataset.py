@@ -7,6 +7,8 @@ import os
 import pandas as pd
 import random
 import numpy as np
+import pandas_profiling as pp
+from sklearn.preprocessing import LabelEncoder
 pd.set_option('display.width', 1800)
 pd.set_option('display.max_columns',10)
 
@@ -14,39 +16,52 @@ pd.set_option('display.max_columns',10)
 # fix the seed for reproducibility:
 random.seed(123)
 np.random.seed(123)
-COLS_TO_KEEP = "EPAssetsId,Province,LicenceNumber,UWI,CurrentOperator,CurrentOperatorParent,CurrentOperatorID,Licensee," \
-           "LicenseeParentCompany,LicenseeID,WellTypeStandardised," \
-           "Formation,Field,Pool,SurveySystem,Surf_Location,Surf_Township," \
-           "Surf_Meridian,Surf_Range,Surf_Section,Surf_LSD,Surf_Longitude,Surf_Latitude,Surf_TownshipRange," \
-           "Surf_QuarterUnit,Surf_Unit,Surf_Block,Surf_NTSMapSheet,Surf_Series,Surf_Area,Surf_Sheet," \
-           "Surf_QuarterSection,BH_Location," \
+COLS_TO_KEEP = "EPAssetsId,CurrentOperator," \
+           "LicenseeID,WellTypeStandardised," \
+           "Formation,Field,Pool,SurveySystem," \
+           "Surf_Longitude,Surf_Latitude," \
            "BH_Longitude,BH_Latitude," \
-           "GroundElevation,KBElevation,TotalDepth,LaheeClass,Confidential,SurfaceOwner,OSArea," \
+           "GroundElevation,KBElevation,TotalDepth,LaheeClass,OSArea," \
            "OSDeposit,DrillingContractor,SpudDate,FinalDrillDate,RigReleaseDate,DaysDrilling,DrillMetresPerDay,TVD," \
            "WellProfile,ProjectedDepth," \
-           "StatusDate,StatusSource,UnitID,UnitName,UnitFlag,Municipality,CompletionDate,Agent,_Max`Prod`(BOE)," \
-           "_Fracture`Stages,_Open`Hole,_Completion`Events "
-# TODO
-# TODO: LicenseeID / LicenceNumbre - can be encoded by counting the entries
-# TODO: Operator - count-encoded ?
-# TODO:
+           "_Max`Prod`(BOE)," \
+           "_Fracture`Stages,_Completion`Events"
+CAT_COLUMNS =['LicenseeID','CurrentOperator','WellTypeStandardised','Formation','Field','Pool','SurveySystem',
+              'LaheeClass','OSArea','OSDeposit','DrillingContractor','WellProfile']
+DATE_COLUMNS = ['FinalDrillDate','RigReleaseDate','SpudDate']
+project_dir = Path(__file__).resolve().parents[2]
+
+
+
 
 def main(input_filepath, output_filepath,suffix = 'Train'):
     """ Runs data processing scripts to turn raw data from (../raw) into
         cleaned data ready to be analyzed (saved in ../processed).
     """
+    encoders = {}
     logger = logging.getLogger(__name__)
     logger.info('making final data set from raw data')
     target_df = pd.read_csv(os.path.join(input_filepath,f'Viking - {suffix}.txt'),nrows=20)
-    feature_df = pd.read_csv(os.path.join(input_filepath, f'Header - {suffix.lower()}.txt'),nrows=2000)
+    feature_df = pd.read_csv(os.path.join(input_filepath, f'Header - {suffix.lower()}.txt'))
+    # subset cols:
+    cols =COLS_TO_KEEP.split(',')
+    feature_df = feature_df.loc[:, cols]
+    feature_df['HZLength'] = feature_df['TotalDepth'] - feature_df['TVD']
+    # Clip to max of 35 days of drilling (?)
+    feature_df['DaysDrilling'] = np.clip(feature_df['DaysDrilling'],a_min=None,a_max=35)
+    for c in DATE_COLUMNS:
+        feature_df[c] = pd.to_datetime(feature_df[c])
+    for cat in CAT_COLUMNS:
+        label_encoder = LabelEncoder()
+        feature_df[cat] = label_encoder.fit_transform(feature_df[cat])
+        encoders[cat] = label_encoder
 
 
-    #df = pd.read_table(target_df,nrows=20)
-    print(target_df.head())
-    print(feature_df['SurveySystem'].unique())
 
-    df=None
-    return df
+    #profile = feature_df.profile_report(title=f'Pandas Profiling Report for {suffix}')
+    #profile.to_file(output_file=os.path.join(project_dir, f"output_{suffix}.html"))
+
+    return 0
 
 
 if __name__ == '__main__':
@@ -54,7 +69,6 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, format=log_fmt)
 
     # not used in this stub but often useful for finding various files
-    project_dir = Path(__file__).resolve().parents[2]
 
     # find .env automagically by walking up directories until it's found, then
     # load up the .env entries as environment variables
