@@ -53,8 +53,8 @@ pd.set_option('display.max_columns', 10)
 # fix the seed for reproducibility:
 random.seed(123)
 np.random.seed(123)
-COLS_TO_KEEP = "EPAssetsId,CurrentOperator," \
-               "LicenseeID,WellTypeStandardised," \
+COLS_TO_KEEP = "EPAssetsId,UWI,CurrentOperator," \
+               "WellTypeStandardised," \
                "Formation,Field,Pool,SurveySystem," \
                "Surf_Longitude,Surf_Latitude," \
                "BH_Longitude,BH_Latitude," \
@@ -62,10 +62,11 @@ COLS_TO_KEEP = "EPAssetsId,CurrentOperator," \
                "OSDeposit,DrillingContractor,SpudDate,FinalDrillDate,RigReleaseDate,DaysDrilling,DrillMetresPerDay,TVD," \
                "WellProfile,ProjectedDepth," \
                "_Max`Prod`(BOE)," \
-               "_Fracture`Stages,_Completion`Events"
-CAT_COLUMNS = ['LicenseeID', 'CurrentOperator', 'WellTypeStandardised', 'Formation', 'Field', 'Pool', 'SurveySystem',
+               "_Fracture`Stages"
+CAT_COLUMNS = [ 'CurrentOperator', 'WellTypeStandardised', 'Formation', 'Field', 'Pool', 'SurveySystem',
                'LaheeClass', 'OSArea', 'OSDeposit', 'DrillingContractor', 'WellProfile']
-DATE_COLUMNS = ['FinalDrillDate', 'RigReleaseDate', 'SpudDate']
+#DATE_COLUMNS = ['FinalDrillDate', 'RigReleaseDate', 'SpudDate']
+DATE_COLUMNS = []
 project_dir = Path(__file__).resolve().parents[2]
 
 
@@ -79,6 +80,7 @@ def read_table(input_file_path, logger, output_file_path, suffix):
     feature_df['HZLength'] = feature_df['TotalDepth'] - feature_df['TVD']
     # Clip to max of 35 days of drilling (?)
     feature_df['DaysDrilling'] = np.clip(feature_df['DaysDrilling'], a_min=None, a_max=35)
+    logger.info(f'Shape feature = {feature_df.shape} {suffix}')
     for c in DATE_COLUMNS:
         logger.info(f'to DT: {c}')
         feature_df[c] = pd.to_datetime(feature_df[c])
@@ -88,8 +90,13 @@ def read_table(input_file_path, logger, output_file_path, suffix):
                                   '_Normalized`IP`Gas`(Boe/d)': 'Gas_norm',
                                   '_Normalized`IP`(Water`-`Bbls)': 'Water_norm'}, inplace=True)
         df_full = pd.merge(feature_df, target_df, on='EPAssetsId')
+        l =list(set(feature_df['EPAssetsId']) & set(target_df['EPAssetsId']))
+        logger.info(f'intersection len: {len(l)}')
+
     else:
         df_full = feature_df
+
+    logger.info(f'Shape full = {df_full.shape} {suffix}')
 
     return df_full, output_filepath_df, output_filepath_misc
 
@@ -113,15 +120,19 @@ def preprocess_table(input_file_path, output_file_path):
     for cat in CAT_COLUMNS:
         logger.info(f'to category: {cat}')
         df_full_train[cat] = df_full_train[cat].astype(str)
-        label_encoder = LabelEncoderExt()
-        label_encoder.fit(df_full_train[cat])
+        df_full_test[cat] = df_full_test[cat].astype(str)
+
+        uvals = list(df_full_train[cat].astype(str).unique()) + list(df_full_test[cat].astype(str).unique())
+        label_encoder = LabelEncoder()
+        label_encoder.fit(uvals)
         # Encode train and test
         df_full_train[cat] = label_encoder.transform(df_full_train[cat])
         df_full_test[cat] = label_encoder.transform(df_full_test[cat])
         encoders[cat] = label_encoder
         logger.info(f'{cat}: {np.sort(df_full_train[cat].unique())}')
     #
-    print(df_full_train.head())
+    print(df_full_train.shape)
+    print(df_full_test.shape)
     # Encode test:
 
 

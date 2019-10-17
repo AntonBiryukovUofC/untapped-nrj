@@ -37,7 +37,6 @@ if __name__ == '__main__':
     os.makedirs(input_file_path, exist_ok=True)
     os.makedirs(output_file_path, exist_ok=True)
 
-    df = build_features(input_file_path, output_file_path,suffix='Train')
-    df = build_features(input_file_path, output_file_path, suffix='Test')
+    df_train = build_features(input_file_path, output_file_path,suffix='Train')
+    df_test = build_features(input_file_path, output_file_path, suffix='Test')
 
-    print(df.columns)
