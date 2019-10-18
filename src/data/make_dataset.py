@@ -9,7 +9,6 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 
-
 from sklearn.preprocessing import LabelEncoder
 import numpy as np
 
@@ -43,9 +42,10 @@ class LabelEncoderExt(object):
         new_data_list = list(data_list)
         for unique_item in np.unique(data_list):
             if unique_item not in self.label_encoder.classes_:
-                new_data_list = ['Unknown' if x==unique_item else x for x in new_data_list]
+                new_data_list = ['Unknown' if x == unique_item else x for x in new_data_list]
 
         return self.label_encoder.transform(new_data_list)
+
 
 pd.set_option('display.width', 1800)
 pd.set_option('display.max_columns', 10)
@@ -63,41 +63,47 @@ COLS_TO_KEEP = "EPAssetsId,UWI,CurrentOperator," \
                "WellProfile,ProjectedDepth," \
                "_Max`Prod`(BOE)," \
                "_Fracture`Stages"
-CAT_COLUMNS = [ 'CurrentOperator', 'WellTypeStandardised', 'Formation', 'Field', 'Pool', 'SurveySystem',
+CAT_COLUMNS = ['CurrentOperator', 'WellTypeStandardised', 'Formation', 'Field', 'Pool', 'SurveySystem',
                'LaheeClass', 'OSArea', 'OSDeposit', 'DrillingContractor', 'WellProfile']
-#DATE_COLUMNS = ['FinalDrillDate', 'RigReleaseDate', 'SpudDate']
-DATE_COLUMNS = []
+DATE_COLUMNS = ['FinalDrillDate', 'RigReleaseDate', 'SpudDate']
+# DATE_COLUMNS = []
 project_dir = Path(__file__).resolve().parents[2]
 
 
 def read_table(input_file_path, logger, output_file_path, suffix):
     output_filepath_df = os.path.join(output_file_path, f'{suffix}_df.pck')
     output_filepath_misc = os.path.join(output_file_path, f'{suffix}_misc.pck')
-    logger.info('making final data set from raw data')
+    logger.info(f'making final data set from raw data {suffix}')
     feature_df = pd.read_csv(os.path.join(input_file_path, f'Header - {suffix.lower()}.txt'))
+    test_wells = pd.read_csv(os.path.join(input_file_path,"regression_sample_submission_test.txt"))['EPAssetsId']
     cols = COLS_TO_KEEP.split(',')
-    feature_df = feature_df.loc[:, cols]
-    feature_df['HZLength'] = feature_df['TotalDepth'] - feature_df['TVD']
-    # Clip to max of 35 days of drilling (?)
-    feature_df['DaysDrilling'] = np.clip(feature_df['DaysDrilling'], a_min=None, a_max=35)
-    logger.info(f'Shape feature = {feature_df.shape} {suffix}')
-    for c in DATE_COLUMNS:
-        logger.info(f'to DT: {c}')
-        feature_df[c] = pd.to_datetime(feature_df[c])
-    if suffix == 'Train':
+
+    if suffix == 'Test':
+        inds = feature_df['EPAssetsId'].isin(test_wells)
+        feature_df = feature_df.loc[inds, cols]
+
+        df_full = feature_df
+
+    if suffix in ['Train', 'Validation']:
+        feature_df = feature_df.loc[:, cols]
+
         target_df = pd.read_csv(os.path.join(input_file_path, f'Viking - {suffix}.txt')).drop('UWI', axis=1)
         target_df.rename(columns={'_Normalized`IP`(Oil`-`Bbls)': 'Oil_norm',
                                   '_Normalized`IP`Gas`(Boe/d)': 'Gas_norm',
                                   '_Normalized`IP`(Water`-`Bbls)': 'Water_norm'}, inplace=True)
         df_full = pd.merge(feature_df, target_df, on='EPAssetsId')
-        l =list(set(feature_df['EPAssetsId']) & set(target_df['EPAssetsId']))
+        l = list(set(feature_df['EPAssetsId']) & set(target_df['EPAssetsId']))
         logger.info(f'intersection len: {len(l)}')
 
-    else:
-        df_full = feature_df
+    df_full['HZLength'] = df_full['TotalDepth'] - df_full['TVD']
+    # Clip to max of 35 days of drilling (?)
+    df_full['DaysDrilling'] = np.clip(df_full['DaysDrilling'], a_min=None, a_max=35)
+    logger.info(f'Shape feature = {df_full.shape} {suffix}')
+    for c in DATE_COLUMNS:
+        logger.info(f'to DT: {c}')
+        df_full[c] = pd.to_datetime(df_full[c])
 
     logger.info(f'Shape full = {df_full.shape} {suffix}')
-
     return df_full, output_filepath_df, output_filepath_misc
 
 
@@ -116,26 +122,31 @@ def preprocess_table(input_file_path, output_file_path):
         input_file_path, logger,
         output_file_path, suffix='Test')
 
+    df_full_val, output_filepath_df_val, output_filepath_misc_val = read_table(
+        input_file_path, logger,
+        output_file_path, suffix='Validation')
+
     # Label encode categoricals
     for cat in CAT_COLUMNS:
         logger.info(f'to category: {cat}')
         df_full_train[cat] = df_full_train[cat].astype(str)
         df_full_test[cat] = df_full_test[cat].astype(str)
 
-        uvals = list(df_full_train[cat].astype(str).unique()) + list(df_full_test[cat].astype(str).unique())
+        uvals = list(df_full_train[cat].astype(str).unique()) + list(df_full_test[cat].astype(str).unique()) + list(
+            df_full_val[cat].astype(str).unique())
         label_encoder = LabelEncoder()
         label_encoder.fit(uvals)
         # Encode train and test
         df_full_train[cat] = label_encoder.transform(df_full_train[cat])
         df_full_test[cat] = label_encoder.transform(df_full_test[cat])
+        df_full_val[cat] = label_encoder.transform(df_full_val[cat])
         encoders[cat] = label_encoder
         logger.info(f'{cat}: {np.sort(df_full_train[cat].unique())}')
     #
     print(df_full_train.shape)
     print(df_full_test.shape)
+    print(df_full_val.shape)
     # Encode test:
-
-
 
     misc = {}
     misc['encoder_dict'] = encoders
@@ -144,6 +155,8 @@ def preprocess_table(input_file_path, output_file_path):
 
     df_full_train.to_pickle(output_filepath_df_train)
     df_full_test.to_pickle(output_filepath_df_test)
+    df_full_val.to_pickle(output_filepath_df_val)
+
     with open(output_filepath_misc_train, 'wb') as f:
         pickle.dump(misc, f)
 

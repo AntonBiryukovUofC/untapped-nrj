@@ -17,6 +17,7 @@ def build_features(input_file_path, output_file_path, suffix="Train"):
     output_file_name = os.path.join(output_file_path, f'{suffix}_final.pck')
 
     df = pd.read_pickle(input_filename)
+    df.loc[df['Surf_Longitude'] > -70,'Surf_Longitude'] = np.nan
 
     for col in DATE_COLUMNS:
         df[col] = (df[col] - pd.to_datetime('1970-01-01')).dt.total_seconds()
@@ -39,4 +40,5 @@ if __name__ == '__main__':
 
     df_train = build_features(input_file_path, output_file_path,suffix='Train')
     df_test = build_features(input_file_path, output_file_path, suffix='Test')
+    df_val = build_features(input_file_path, output_file_path, suffix='Validation')
 
