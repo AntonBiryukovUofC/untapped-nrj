@@ -47,6 +47,7 @@ def main(input_file_path, output_file_path, tgt='Oil_norm', n_splits=5):
     df_val = pd.read_pickle(input_file_name_val).drop(exclude_cols, axis=1)
 
     ids = df_test['EPAssetsId']
+
     ids_uwi = df_test['UWI']
 
     df_test = df_test.drop(exclude_cols, axis=1)
@@ -64,8 +65,9 @@ def main(input_file_path, output_file_path, tgt='Oil_norm', n_splits=5):
         ['Oil_norm', 'Gas_norm', 'Water_norm', 'EPAssetsId', '_Normalized`IP`BOE/d'],
         axis=1), df_val.loc[~df_val[tgt].isna(), tgt]
 
+
     preds_test = np.zeros((n_splits, df_test.shape[0]))
-    preds_holdout = np.zeros((n_splits, df_val.shape[0], 3))
+    preds_holdout = np.zeros((n_splits, X_holdout.shape[0]))
 
     for k, (train_index, test_index) in enumerate(cv.split(X, y)):
         X_train, X_val = X.iloc[train_index, :], X.iloc[test_index, :]
@@ -90,6 +92,7 @@ def main(input_file_path, output_file_path, tgt='Oil_norm', n_splits=5):
         models.append(model)
         scores.append(score)
         scores_dm.append((score_dm))
+        logging.info(f'Holdout score = {score}')
         preds_test[k, :] = model.predict(X_test).reshape(1, -1)
         preds_holdout[k, :] = model.predict(X_holdout).reshape(1, -1)
 
@@ -100,7 +103,12 @@ def main(input_file_path, output_file_path, tgt='Oil_norm', n_splits=5):
     logging.info(f'Mean scores Dummy = {np.mean(scores_dm)}')
 
     preds_df = pd.DataFrame({'EPAssetsID': ids, 'UWI': ids_uwi, tgt: preds_test.mean(axis=0)})
-    return preds_df
+    preds_df_val = pd.DataFrame({tgt: preds_holdout.mean(axis=0),
+                                 'gt': y_holdout})
+    score_holdout = mean_absolute_error(preds_df_val['gt'], preds_df_val[tgt])
+    logging.info(f'Final score on holdout: {score_holdout}')
+
+    return preds_df,score_holdout
 
 
 if __name__ == '__main__':
@@ -113,10 +121,10 @@ if __name__ == '__main__':
     os.makedirs(input_file_path, exist_ok=True)
     os.makedirs(output_file_path, exist_ok=True)
 
-    preds_oil = main(input_file_path, output_file_path, tgt='Oil_norm')
-    preds_gas = main(input_file_path, output_file_path, tgt='Gas_norm')
-    preds_water = main(input_file_path, output_file_path, tgt='Water_norm')
-
+    preds_oil, score_holdout_oil = main(input_file_path, output_file_path, tgt='Oil_norm')
+    preds_gas, score_holdout_gas = main(input_file_path, output_file_path, tgt='Gas_norm')
+    preds_water, score_holdout_water = main(input_file_path, output_file_path, tgt='Water_norm')
+    logging.info(f'Scores are: oil {score_holdout_oil}, gas {score_holdout_gas} water {score_holdout_water}')
     df = preds_oil
     df_merge_list = [preds_gas, preds_water]
     for x in df_merge_list:
