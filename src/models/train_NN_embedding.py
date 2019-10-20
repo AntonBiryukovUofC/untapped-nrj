@@ -14,7 +14,7 @@ from lightgbm import LGBMRegressor, LGBMModel
 from sklearn.model_selection import KFold
 from sklearn.dummy import DummyRegressor
 from sklearn.metrics import mean_absolute_error
-
+from src.models.NNPredictor import NNPredictor
 project_dir = Path(__file__).resolve().parents[2]
 
 log_fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -23,18 +23,6 @@ logging.basicConfig(level=logging.INFO, format=log_fmt)
 exclude_cols = ['FinalDrillDate', 'RigReleaseDate', 'SpudDate', 'UWI']
 
 
-class LogLGBM(LGBMRegressor):
-
-    def fit(self, X, Y, **kwargs):
-        y_train = np.log(Y)
-        super(LogLGBM, self).fit(X, y_train, **kwargs)
-
-        return self
-
-    def predict(self, X):
-        preds = super(LogLGBM, self).predict(X)
-        preds = np.exp(preds)
-        return preds
 
 
 def main(input_file_path, output_file_path, tgt='Oil_norm', n_splits=5):
@@ -59,7 +47,7 @@ def main(input_file_path, output_file_path, tgt='Oil_norm', n_splits=5):
     scores = []
     scores_dm = []
     y = df.loc[~df[tgt].isna(), tgt]
-    X = df.loc[~df[tgt].isna(), :].drop(['Oil_norm', 'Gas_norm', 'Water_norm', 'EPAssetsId', '_Normalized`IP`BOE/d'],
+    X_all = df.loc[~df[tgt].isna(), :].drop(['Oil_norm', 'Gas_norm', 'Water_norm', 'EPAssetsId', '_Normalized`IP`BOE/d'],
                                         axis=1)
     X_test = df_test.copy().drop('EPAssetsId', axis=1)
 
@@ -71,19 +59,20 @@ def main(input_file_path, output_file_path, tgt='Oil_norm', n_splits=5):
     preds_test = np.zeros((n_splits, df_test.shape[0]))
     preds_holdout = np.zeros((n_splits, X_holdout.shape[0]))
 
-    for k, (train_index, test_index) in enumerate(cv.split(X, y)):
-        X_train, X_val = X.iloc[train_index, :], X.iloc[test_index, :]
+    for k, (train_index, test_index) in enumerate(cv.split(X_all, y)):
+        X_train, X_val = X_all.iloc[train_index, :], X_all.iloc[test_index, :]
 
         # model = LGBMRegressor(num_leaves=16, learning_rate=0.1, n_estimators=300, reg_lambda=30, reg_alpha=30,
         # objective='mae',random_state=123)
 
-        model = LogLGBM(num_leaves=16, learning_rate=0.05, n_estimators=900, reg_lambda=0, reg_alpha=0,
-                        objective='mae', random_state=123, feature_fraction=0.7)
+        predictor_obj = NNPredictor(categorical_features=CAT_COLUMNS, numerical_features=X_train.columns.difference(CAT_COLUMNS))
+
         y_train, y_val = y.iloc[train_index], y.iloc[test_index]
         geom_mean = gmean(y_train)
         dm = DummyRegressor(strategy='constant', constant=geom_mean)
+        proc_X_train, proc_X_val, proc_X_test = predictor_obj.preprocess_data(X_train, X_val, X_test)
 
-        model.fit(X_train, y_train, categorical_feature=CAT_COLUMNS)
+        predictor_obj.fit(proc_X_train, y_train.values)
         # model.fit(X_train, y_train)
         dm.fit(X_train, y_train)
 
@@ -91,12 +80,12 @@ def main(input_file_path, output_file_path, tgt='Oil_norm', n_splits=5):
         score_dm = mean_absolute_error(y_val, dm.predict(X_val))
 
         # logging.info(f' Score = {score}')
-        models.append(model)
+        models.append(predictor_obj)
         scores.append(score)
         scores_dm.append((score_dm))
         logging.info(f'Holdout score = {score}')
-        preds_test[k, :] = model.predict(X_test).reshape(1, -1)
-        preds_holdout[k, :] = model.predict(X_holdout).reshape(1, -1)
+        preds_test[k, :] = predictor_obj.predict(X_test).reshape(1, -1)
+        preds_holdout[k, :] = predictor_obj.predict(X_holdout).reshape(1, -1)
 
     with open(output_file_name, 'wb') as f:
         pickle.dump(models, f)

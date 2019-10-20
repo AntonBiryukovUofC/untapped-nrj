@@ -21,6 +21,9 @@ def build_features(input_file_path, output_file_path, suffix="Train"):
 
     for col in DATE_COLUMNS:
         df[col] = (df[col] - pd.to_datetime('1970-01-01')).dt.total_seconds()
+    df['LengthDrill'] = df['DaysDrilling'] * df['DrillMetresPerDay']
+
+
     df.to_pickle(output_file_name)
     return df
 
