@@ -7,10 +7,8 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from category_encoders import OrdinalEncoder
 from sklearn.preprocessing import LabelEncoder
-
-from sklearn.preprocessing import LabelEncoder
-import numpy as np
 
 
 class LabelEncoderExt(object):
@@ -64,7 +62,7 @@ COLS_TO_KEEP = "EPAssetsId,UWI,CurrentOperator," \
                "_Max`Prod`(BOE)," \
                "_Fracture`Stages"
 CAT_COLUMNS = ['CurrentOperator', 'WellTypeStandardised', 'Formation', 'Field', 'Pool', 'SurveySystem',
-               'LaheeClass', 'OSArea', 'OSDeposit', 'DrillingContractor', 'WellProfile']
+               'LaheeClass', 'OSArea', 'OSDeposit', 'DrillingContractor', 'WellProfile','_Fracture`Stages']
 DATE_COLUMNS = ['FinalDrillDate', 'RigReleaseDate', 'SpudDate']
 # DATE_COLUMNS = []
 project_dir = Path(__file__).resolve().parents[2]
@@ -127,21 +125,12 @@ def preprocess_table(input_file_path, output_file_path):
         output_file_path, suffix='Validation')
 
     # Label encode categoricals
-    for cat in CAT_COLUMNS:
-        logger.info(f'to category: {cat}')
-        df_full_train[cat] = df_full_train[cat].astype(str)
-        df_full_test[cat] = df_full_test[cat].astype(str)
-
-        uvals = list(df_full_train[cat].astype(str).unique()) + list(df_full_test[cat].astype(str).unique()) + list(
-            df_full_val[cat].astype(str).unique())
-        label_encoder = LabelEncoder()
-        label_encoder.fit(uvals)
-        # Encode train and test
-        df_full_train[cat] = label_encoder.transform(df_full_train[cat])
-        df_full_test[cat] = label_encoder.transform(df_full_test[cat])
-        df_full_val[cat] = label_encoder.transform(df_full_val[cat])
-        encoders[cat] = label_encoder
-        logger.info(f'{cat}: {np.sort(df_full_train[cat].unique())}')
+    label_encoder = OrdinalEncoder(cols=CAT_COLUMNS)
+    label_encoder.fit(df_full_train[df_full_test.columns])
+    # Encode train and test
+    df_full_train[df_full_test.columns] = label_encoder.transform(df_full_train[df_full_test.columns])
+    df_full_test = label_encoder.transform(df_full_test)
+    df_full_val[df_full_test.columns] = label_encoder.transform(df_full_val[df_full_test.columns])
     #
     print(df_full_train.shape)
     print(df_full_test.shape)

@@ -1,29 +1,26 @@
 import logging
 import os
 import pickle
-import random
 import eli5
 
 from pathlib import Path
 from scipy.stats.mstats import gmean
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import LabelEncoder
-from src.data.make_dataset import DATE_COLUMNS, CAT_COLUMNS
-from lightgbm import LGBMRegressor, LGBMModel
+from src.data.make_dataset import CAT_COLUMNS
 from sklearn.model_selection import KFold
 from sklearn.dummy import DummyRegressor
 from sklearn.metrics import mean_absolute_error
 from src.models.NNPredictor import NNPredictor
+
 project_dir = Path(__file__).resolve().parents[2]
 
 log_fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 logging.basicConfig(level=logging.INFO, format=log_fmt)
 # exclude_cols = ['FinalDrillDate', 'RigReleaseDate', 'SpudDate','UWI']
-exclude_cols = ['FinalDrillDate', 'RigReleaseDate', 'SpudDate', 'UWI']
-
-
-
+exclude_cols = ['FinalDrillDate', 'RigReleaseDate', 'SpudDate', 'UWI','OSArea','OSDeposit','SurveySystem']
+cat_cols_new = CAT_COLUMNS
+cat_cols_new = list(set(cat_cols_new) - (set(cat_cols_new) & set(exclude_cols)))
 
 def main(input_file_path, output_file_path, tgt='Oil_norm', n_splits=5):
     input_file_name = os.path.join(input_file_path, 'Train_final.pck')
@@ -47,14 +44,14 @@ def main(input_file_path, output_file_path, tgt='Oil_norm', n_splits=5):
     scores = []
     scores_dm = []
     y = df.loc[~df[tgt].isna(), tgt]
-    X_all = df.loc[~df[tgt].isna(), :].drop(['Oil_norm', 'Gas_norm', 'Water_norm', 'EPAssetsId', '_Normalized`IP`BOE/d'],
-                                        axis=1)
+    X_all = df.loc[~df[tgt].isna(), :].drop(
+        ['Oil_norm', 'Gas_norm', 'Water_norm', 'EPAssetsId', '_Normalized`IP`BOE/d'],
+        axis=1)
     X_test = df_test.copy().drop('EPAssetsId', axis=1)
 
     X_holdout, y_holdout = df_val.loc[~df_val[tgt].isna(), :].drop(
         ['Oil_norm', 'Gas_norm', 'Water_norm', 'EPAssetsId', '_Normalized`IP`BOE/d'],
         axis=1), df_val.loc[~df_val[tgt].isna(), tgt]
-
 
     preds_test = np.zeros((n_splits, df_test.shape[0]))
     preds_holdout = np.zeros((n_splits, X_holdout.shape[0]))
@@ -64,28 +61,30 @@ def main(input_file_path, output_file_path, tgt='Oil_norm', n_splits=5):
 
         # model = LGBMRegressor(num_leaves=16, learning_rate=0.1, n_estimators=300, reg_lambda=30, reg_alpha=30,
         # objective='mae',random_state=123)
-
-        predictor_obj = NNPredictor(categorical_features=CAT_COLUMNS, numerical_features=X_train.columns.difference(CAT_COLUMNS))
+        logging.info(f'Creating a NNPredictor with {cat_cols_new}')
+        predictor_obj = NNPredictor(categorical_features=cat_cols_new,
+                                    numerical_features=X_train.columns.difference(cat_cols_new),
+                                    data=X_train)
 
         y_train, y_val = y.iloc[train_index], y.iloc[test_index]
         geom_mean = gmean(y_train)
         dm = DummyRegressor(strategy='constant', constant=geom_mean)
-        proc_X_train, proc_X_val, proc_X_test = predictor_obj.preprocess_data(X_train, X_val, X_test)
+        proc_X_train, proc_X_holdout, proc_X_test = predictor_obj.preprocess_data(X_train, X_holdout, X_test)
 
-        predictor_obj.fit(proc_X_train, y_train.values)
+        predictor_obj.fit(x=proc_X_train, y=y_train.values, batch_size=16, epochs=5)
         # model.fit(X_train, y_train)
         dm.fit(X_train, y_train)
 
-        score = mean_absolute_error(y_holdout, model.predict(X_holdout))
+        score = mean_absolute_error(y_holdout, predictor_obj.predict(x=X_holdout))
         score_dm = mean_absolute_error(y_val, dm.predict(X_val))
 
         # logging.info(f' Score = {score}')
         models.append(predictor_obj)
         scores.append(score)
-        scores_dm.append((score_dm))
+        scores_dm.append(score_dm)
         logging.info(f'Holdout score = {score}')
-        preds_test[k, :] = predictor_obj.predict(X_test).reshape(1, -1)
-        preds_holdout[k, :] = predictor_obj.predict(X_holdout).reshape(1, -1)
+        preds_test[k, :] = predictor_obj.predict(x=proc_X_test).reshape(1, -1)
+        preds_holdout[k, :] = predictor_obj.predict(x=proc_X_holdout).reshape(1, -1)
 
     with open(output_file_name, 'wb') as f:
         pickle.dump(models, f)
@@ -100,7 +99,7 @@ def main(input_file_path, output_file_path, tgt='Oil_norm', n_splits=5):
     logging.info(f'Final score on holdout: {score_holdout}')
     print(eli5.format_as_dataframe(eli5.explain_weights(model)))
 
-    return preds_df,score_holdout
+    return preds_df, score_holdout
 
 
 if __name__ == '__main__':
