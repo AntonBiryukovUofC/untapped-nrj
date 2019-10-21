@@ -26,7 +26,7 @@ class LabelEncoderExt(object):
         :param data_list: A list of string
         :return: self
         """
-        self.label_encoder = self.label_encoder.fit(list(data_list) + ['Unknown'])
+        self.label_encoder = self.label_encoder.fit(list(data_list) + ["Unknown"])
         self.classes_ = self.label_encoder.classes_
 
         return self
@@ -40,68 +40,95 @@ class LabelEncoderExt(object):
         new_data_list = list(data_list)
         for unique_item in np.unique(data_list):
             if unique_item not in self.label_encoder.classes_:
-                new_data_list = ['Unknown' if x == unique_item else x for x in new_data_list]
+                new_data_list = [
+                    "Unknown" if x == unique_item else x for x in new_data_list
+                ]
 
         return self.label_encoder.transform(new_data_list)
 
 
-pd.set_option('display.width', 1800)
-pd.set_option('display.max_columns', 10)
+pd.set_option("display.width", 1800)
+pd.set_option("display.max_columns", 10)
 
 # fix the seed for reproducibility:
 random.seed(123)
 np.random.seed(123)
-COLS_TO_KEEP = "EPAssetsId,UWI,CurrentOperator," \
-               "WellTypeStandardised," \
-               "Formation,Field,Pool,SurveySystem," \
-               "Surf_Longitude,Surf_Latitude," \
-               "BH_Longitude,BH_Latitude," \
-               "GroundElevation,KBElevation,TotalDepth,LaheeClass,OSArea," \
-               "OSDeposit,DrillingContractor,SpudDate,FinalDrillDate,RigReleaseDate,DaysDrilling,DrillMetresPerDay,TVD," \
-               "WellProfile,ProjectedDepth," \
-               "_Max`Prod`(BOE)," \
-               "_Fracture`Stages"
-CAT_COLUMNS = ['CurrentOperator', 'WellTypeStandardised', 'Formation', 'Field', 'Pool', 'SurveySystem',
-               'LaheeClass', 'OSArea', 'OSDeposit', 'DrillingContractor', 'WellProfile','_Fracture`Stages']
-DATE_COLUMNS = ['FinalDrillDate', 'RigReleaseDate', 'SpudDate']
+COLS_TO_KEEP = (
+    "EPAssetsId,UWI,CurrentOperator,"
+    "WellTypeStandardised,"
+    "Formation,Field,Pool,SurveySystem,"
+    "Surf_Longitude,Surf_Latitude,"
+    "BH_Longitude,BH_Latitude,"
+    "GroundElevation,KBElevation,TotalDepth,LaheeClass,OSArea,"
+    "OSDeposit,DrillingContractor,SpudDate,FinalDrillDate,RigReleaseDate,DaysDrilling,DrillMetresPerDay,TVD,"
+    "WellProfile,ProjectedDepth,"
+    "_Max`Prod`(BOE),"
+    "_Fracture`Stages"
+)
+CAT_COLUMNS = [
+    "CurrentOperator",
+    "WellTypeStandardised",
+    "Formation",
+    "Field",
+    "Pool",
+    "SurveySystem",
+    "LaheeClass",
+    "OSArea",
+    "OSDeposit",
+    "DrillingContractor",
+    "WellProfile",
+    "_Fracture`Stages",
+]
+DATE_COLUMNS = ["FinalDrillDate", "RigReleaseDate", "SpudDate"]
 # DATE_COLUMNS = []
 project_dir = Path(__file__).resolve().parents[2]
 
 
 def read_table(input_file_path, logger, output_file_path, suffix):
-    output_filepath_df = os.path.join(output_file_path, f'{suffix}_df.pck')
-    output_filepath_misc = os.path.join(output_file_path, f'{suffix}_misc.pck')
-    logger.info(f'making final data set from raw data {suffix}')
-    feature_df = pd.read_csv(os.path.join(input_file_path, f'Header - {suffix.lower()}.txt'))
-    test_wells = pd.read_csv(os.path.join(input_file_path,"regression_sample_submission_test.txt"))['EPAssetsId']
-    cols = COLS_TO_KEEP.split(',')
+    output_filepath_df = os.path.join(output_file_path, f"{suffix}_df.pck")
+    output_filepath_misc = os.path.join(output_file_path, f"{suffix}_misc.pck")
+    logger.info(f"making final data set from raw data {suffix}")
+    feature_df = pd.read_csv(
+        os.path.join(input_file_path, f"Header - {suffix.lower()}.txt")
+    )
+    test_wells = pd.read_csv(
+        os.path.join(input_file_path, "regression_sample_submission_test.txt")
+    )["EPAssetsId"]
+    cols = COLS_TO_KEEP.split(",")
 
-    if suffix == 'Test':
-        inds = feature_df['EPAssetsId'].isin(test_wells)
+    if suffix == "Test":
+        inds = feature_df["EPAssetsId"].isin(test_wells)
         feature_df = feature_df.loc[inds, cols]
 
         df_full = feature_df
 
-    if suffix in ['Train', 'Validation']:
+    if suffix in ["Train", "Validation"]:
         feature_df = feature_df.loc[:, cols]
 
-        target_df = pd.read_csv(os.path.join(input_file_path, f'Viking - {suffix}.txt')).drop('UWI', axis=1)
-        target_df.rename(columns={'_Normalized`IP`(Oil`-`Bbls)': 'Oil_norm',
-                                  '_Normalized`IP`Gas`(Boe/d)': 'Gas_norm',
-                                  '_Normalized`IP`(Water`-`Bbls)': 'Water_norm'}, inplace=True)
-        df_full = pd.merge(feature_df, target_df, on='EPAssetsId')
-        l = list(set(feature_df['EPAssetsId']) & set(target_df['EPAssetsId']))
-        logger.info(f'intersection len: {len(l)}')
+        target_df = pd.read_csv(
+            os.path.join(input_file_path, f"Viking - {suffix}.txt")
+        ).drop("UWI", axis=1)
+        target_df.rename(
+            columns={
+                "_Normalized`IP`(Oil`-`Bbls)": "Oil_norm",
+                "_Normalized`IP`Gas`(Boe/d)": "Gas_norm",
+                "_Normalized`IP`(Water`-`Bbls)": "Water_norm",
+            },
+            inplace=True,
+        )
+        df_full = pd.merge(feature_df, target_df, on="EPAssetsId")
+        l = list(set(feature_df["EPAssetsId"]) & set(target_df["EPAssetsId"]))
+        logger.info(f"intersection len: {len(l)}")
 
-    df_full['HZLength'] = df_full['TotalDepth'] - df_full['TVD']
+    df_full["HZLength"] = df_full["TotalDepth"] - df_full["TVD"]
     # Clip to max of 35 days of drilling (?)
-    df_full['DaysDrilling'] = np.clip(df_full['DaysDrilling'], a_min=None, a_max=35)
-    logger.info(f'Shape feature = {df_full.shape} {suffix}')
+    df_full["DaysDrilling"] = np.clip(df_full["DaysDrilling"], a_min=None, a_max=35)
+    logger.info(f"Shape feature = {df_full.shape} {suffix}")
     for c in DATE_COLUMNS:
-        logger.info(f'to DT: {c}')
+        logger.info(f"to DT: {c}")
         df_full[c] = pd.to_datetime(df_full[c])
 
-    logger.info(f'Shape full = {df_full.shape} {suffix}')
+    logger.info(f"Shape full = {df_full.shape} {suffix}")
     return df_full, output_filepath_df, output_filepath_misc
 
 
@@ -113,24 +140,28 @@ def preprocess_table(input_file_path, output_file_path):
     logger = logging.getLogger(__name__)
 
     df_full_train, output_filepath_df_train, output_filepath_misc_train = read_table(
-        input_file_path, logger,
-        output_file_path, suffix='Train')
+        input_file_path, logger, output_file_path, suffix="Train"
+    )
 
     df_full_test, output_filepath_df_test, output_filepath_misc_test = read_table(
-        input_file_path, logger,
-        output_file_path, suffix='Test')
+        input_file_path, logger, output_file_path, suffix="Test"
+    )
 
     df_full_val, output_filepath_df_val, output_filepath_misc_val = read_table(
-        input_file_path, logger,
-        output_file_path, suffix='Validation')
+        input_file_path, logger, output_file_path, suffix="Validation"
+    )
 
     # Label encode categoricals
     label_encoder = OrdinalEncoder(cols=CAT_COLUMNS)
     label_encoder.fit(df_full_train[df_full_test.columns])
     # Encode train and test
-    df_full_train[df_full_test.columns] = label_encoder.transform(df_full_train[df_full_test.columns])
+    df_full_train[df_full_test.columns] = label_encoder.transform(
+        df_full_train[df_full_test.columns]
+    )
     df_full_test = label_encoder.transform(df_full_test)
-    df_full_val[df_full_test.columns] = label_encoder.transform(df_full_val[df_full_test.columns])
+    df_full_val[df_full_test.columns] = label_encoder.transform(
+        df_full_val[df_full_test.columns]
+    )
     #
     print(df_full_train.shape)
     print(df_full_test.shape)
@@ -138,7 +169,7 @@ def preprocess_table(input_file_path, output_file_path):
     # Encode test:
 
     misc = {}
-    misc['encoder_dict'] = encoders
+    misc["encoder_dict"] = encoders
     # profile = feature_df.profile_report(title=f'Pandas Profiling Report for {suffix}')
     # profile.to_file(output_file=os.path.join(project_dir, f"output_{suffix}.html"))
 
@@ -146,20 +177,20 @@ def preprocess_table(input_file_path, output_file_path):
     df_full_test.to_pickle(output_filepath_df_test)
     df_full_val.to_pickle(output_filepath_df_val)
 
-    with open(output_filepath_misc_train, 'wb') as f:
+    with open(output_filepath_misc_train, "wb") as f:
         pickle.dump(misc, f)
 
     return 0
 
 
-if __name__ == '__main__':
-    log_fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+if __name__ == "__main__":
+    log_fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     logging.basicConfig(level=logging.INFO, format=log_fmt)
 
     # not used in this stub but often useful for finding various files
 
     # find .env automagically by walking up directories until it's found, then
     # load up the .env entries as environment variables
-    input_filepath = os.path.join(project_dir, 'data', 'raw')
-    output_filepath = os.path.join(project_dir, 'data', 'processed')
+    input_filepath = os.path.join(project_dir, "data", "raw")
+    output_filepath = os.path.join(project_dir, "data", "processed")
     preprocess_table(input_filepath, output_filepath)
