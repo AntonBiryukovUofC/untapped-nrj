@@ -21,7 +21,14 @@ def build_features(input_file_path, output_file_path, suffix="Train"):
 
     for col in DATE_COLUMNS:
         df[col] = (df[col] - pd.to_datetime("1970-01-01")).dt.total_seconds()
+    df["timediff"] = df["SpudDate"] - df["SurfAbandonDate"]
+    df["st_timediff"] = df["SpudDate"] - df["StatusDate"]
+    df["cf_timediff"] = df["ConfidentialReleaseDate"] - df["SpudDate"]
+    df["lic_timediff"] = df["LicenseDate"] - df["SpudDate"]
     df["LengthDrill"] = df["DaysDrilling"] * df["DrillMetresPerDay"]
+    df["comp_timediff"] = df["CompletionDate"] - df["SpudDate"]
+    df["final_timediff"] = df["FinalDrillDate"] - df["SpudDate"]
+    df["rrd_timediff"] = df["RigReleaseDate"] - df["SpudDate"]
 
     df.to_pickle(output_file_name)
     return df

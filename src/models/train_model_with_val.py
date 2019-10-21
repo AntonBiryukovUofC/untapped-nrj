@@ -47,6 +47,7 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", n_splits=5):
     df = pd.read_pickle(input_file_name).drop(exclude_cols, axis=1)
     df_test = pd.read_pickle(input_file_name_test)
     df_val = pd.read_pickle(input_file_name_val).drop(exclude_cols, axis=1)
+    df_all = pd.concat([df, df_val], axis=0)
 
     ids = df_test["EPAssetsId"]
 
@@ -58,64 +59,63 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", n_splits=5):
     models = []
     scores = []
     scores_dm = []
-    y = df.loc[~df[tgt].isna(), tgt]
-    X = df.loc[~df[tgt].isna(), :].drop(
+
+    y = df_all.loc[~df_all[tgt].isna(), tgt]
+    X = df_all.loc[~df_all[tgt].isna(), :].drop(
         ["Oil_norm", "Gas_norm", "Water_norm", "EPAssetsId", "_Normalized`IP`BOE/d"],
         axis=1,
     )
     X_test = df_test.copy().drop("EPAssetsId", axis=1)
 
-    X_holdout, y_holdout = (
-        df_val.loc[~df_val[tgt].isna(), :].drop(
-            [
-                "Oil_norm",
-                "Gas_norm",
-                "Water_norm",
-                "EPAssetsId",
-                "_Normalized`IP`BOE/d",
-            ],
-            axis=1,
-        ),
-        df_val.loc[~df_val[tgt].isna(), tgt],
-    )
-
     preds_test = np.zeros((n_splits, df_test.shape[0]))
-    preds_holdout = np.zeros((n_splits, X_holdout.shape[0]))
+    preds_holdout = np.zeros((n_splits, X.shape[0]))
+    np.random.seed(123)
+    fr = np.random.uniform(low=-0.1,high=0.1,size = n_splits)
+    lam = np.random.uniform(low=-5, high=5, size=n_splits)
+    alpha = np.random.uniform(low=1, high=5, size=n_splits)
+    leaves = np.random.uniform(low=-15, high=10, size=n_splits).astype(int)
+
 
     for k, (train_index, test_index) in enumerate(cv.split(X, y)):
-        X_train, X_val = X.iloc[train_index, :], X.iloc[test_index, :]
+        X_train, X_holdout = X.iloc[train_index, :], X.iloc[test_index, :]
 
         # model = LGBMRegressor(num_leaves=16, learning_rate=0.1, n_estimators=300, reg_lambda=30, reg_alpha=30,
         # objective='mae',random_state=123)
 
         model = LogLGBM(
-            num_leaves=16,
-            learning_rate=0.05,
-            n_estimators=900,
-            reg_lambda=0,
-            reg_alpha=0,
+            num_leaves=32 + leaves[k],
+            bagging_fraction=0.5 + fr[k],
+            learning_rate=0.04,
+            n_estimators=3500,
+            reg_lambda=15 + lam[k],
+            reg_alpha=5 + alpha[k],
             objective="mae",
             random_state=123,
             feature_fraction=0.7,
         )
-        y_train, y_val = y.iloc[train_index], y.iloc[test_index]
+        y_train, y_holdout = y.iloc[train_index], y.iloc[test_index]
         geom_mean = gmean(y_train)
         dm = DummyRegressor(strategy="constant", constant=geom_mean)
 
-        model.fit(X_train, y_train, categorical_feature=CAT_COLUMNS)
+        model.fit(X_train, y_train, categorical_feature=CAT_COLUMNS,
+                  eval_set=(X_holdout, y_holdout),
+                  early_stopping_rounds=50,
+                  verbose=200
+                  )
         # model.fit(X_train, y_train)
         dm.fit(X_train, y_train)
 
         score = mean_absolute_error(y_holdout, model.predict(X_holdout))
-        score_dm = mean_absolute_error(y_val, dm.predict(X_val))
+        score_dm = mean_absolute_error(y_holdout, dm.predict(X_holdout))
 
         # logging.info(f' Score = {score}')
         models.append(model)
         scores.append(score)
+
         scores_dm.append((score_dm))
         logger.warning(f"Holdout score = {score}")
         preds_test[k, :] = model.predict(X_test).reshape(1, -1)
-        preds_holdout[k, :] = model.predict(X_holdout).reshape(1, -1)
+        preds_holdout[k, test_index] = model.predict(X_holdout).reshape(1, -1)
 
     with open(output_file_name, "wb") as f:
         pickle.dump(models, f)
@@ -126,12 +126,11 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", n_splits=5):
     preds_df = pd.DataFrame(
         {"EPAssetsID": ids, "UWI": ids_uwi, tgt: preds_test.mean(axis=0)}
     )
-    preds_df_val = pd.DataFrame({tgt: preds_holdout.mean(axis=0), "gt": y_holdout})
-    score_holdout = mean_absolute_error(preds_df_val["gt"], preds_df_val[tgt])
-    logger.warning(f"Final score on holdout: {score_holdout}")
+    preds_df_val = pd.DataFrame({tgt: preds_holdout.mean(axis=0), "gt": y})
+    logger.warning(f"Final scores on holdout: {np.mean(scores)} +- {np.std(scores)}")
     print(eli5.format_as_dataframe(eli5.explain_weights(model)))
 
-    return preds_df, score_holdout
+    return preds_df, np.mean(scores)
 
 
 if __name__ == "__main__":

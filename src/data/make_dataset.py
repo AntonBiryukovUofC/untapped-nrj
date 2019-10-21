@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 from category_encoders import OrdinalEncoder
 from sklearn.preprocessing import LabelEncoder
+import category_encoders as ce
 
 
 class LabelEncoderExt(object):
@@ -55,34 +56,57 @@ random.seed(123)
 np.random.seed(123)
 COLS_TO_KEEP = (
     "EPAssetsId,UWI,CurrentOperator,"
-    "WellTypeStandardised,"
-    "Formation,Field,Pool,SurveySystem,"
+    "WellType,"
+    "Formation,Field,Pool,"
     "Surf_Longitude,Surf_Latitude,"
-    "BH_Longitude,BH_Latitude,"
-    "GroundElevation,KBElevation,TotalDepth,LaheeClass,OSArea,"
-    "OSDeposit,DrillingContractor,SpudDate,FinalDrillDate,RigReleaseDate,DaysDrilling,DrillMetresPerDay,TVD,"
+    "GroundElevation,KBElevation,TotalDepth,LaheeClass,"
+    "DrillingContractor,SpudDate,FinalDrillDate,RigReleaseDate,DaysDrilling,DrillMetresPerDay,TVD,"
     "WellProfile,ProjectedDepth,"
     "_Max`Prod`(BOE),"
-    "_Fracture`Stages"
+    "_Fracture`Stages,"
+    "Confidential,SurfaceOwner,_Open`Hole,CompletionDate,Agent,ConfidentialReleaseDate,StatusDate,SurfAbandonDate,"
+    "Licensee,LicenseNumber,StatusSource,CurrentOperatorParent,LicenseDate,Municipality,OSArea,OSDeposit,PSACAreaCode,UnitName"
 )
 CAT_COLUMNS = [
     "CurrentOperator",
-    "WellTypeStandardised",
+    "Licensee",
+    "WellType",
     "Formation",
     "Field",
     "Pool",
-    "SurveySystem",
     "LaheeClass",
-    "OSArea",
-    "OSDeposit",
     "DrillingContractor",
     "WellProfile",
     "_Fracture`Stages",
+    "_Open`Hole",
+    "Confidential",
+    "SurfaceOwner",
+    "Agent",
+    "StatusSource",
+    "Municipality"
 ]
-DATE_COLUMNS = ["FinalDrillDate", "RigReleaseDate", "SpudDate"]
-# DATE_COLUMNS = []
-project_dir = Path(__file__).resolve().parents[2]
+DATE_COLUMNS = [
+    "ConfidentialReleaseDate",
+    "SurfAbandonDate",
+    "SpudDate",
+    "StatusDate",
+    "LicenseDate",
+    "CompletionDate",
+    "FinalDrillDate",
+    "RigReleaseDate",
+]# DATE_COLUMNS = []
+COUNT_COLUMNS = ["LicenseNumber", "OSDeposit", "OSArea", "PSACAreaCode", "UnitName"]
 
+project_dir = Path(__file__).resolve().parents[2]
+cols = COLS_TO_KEEP.split(",")
+all_cols = CAT_COLUMNS + COUNT_COLUMNS + DATE_COLUMNS
+
+in_cols = [c in cols for c in all_cols]
+if not (all(in_cols)):
+    logging.error(in_cols)
+    logging.error(all_cols[in_cols.index(False)])
+
+    raise ValueError("Check your categorical columns and cols to keep!")
 
 def read_table(input_file_path, logger, output_file_path, suffix):
     output_filepath_df = os.path.join(output_file_path, f"{suffix}_df.pck")
@@ -152,9 +176,21 @@ def preprocess_table(input_file_path, output_file_path):
     )
 
     # Label encode categoricals
-    label_encoder = OrdinalEncoder(cols=CAT_COLUMNS)
-    label_encoder.fit(df_full_train[df_full_test.columns])
-    # Encode train and test
+    for cat in CAT_COLUMNS:
+        logger.info(f"to category: {cat}")
+        df_full_train[cat] = df_full_train[cat].astype(str)
+        df_full_test[cat] = df_full_test[cat].astype(str)
+        df_full_val[cat] = df_full_val[cat].astype(str)
+
+    # Label encode categoricals
+    label_encoder = ce.OrdinalEncoder(return_df=True, cols=CAT_COLUMNS, verbose=1)
+    count_encoder = ce.CountEncoder(
+        return_df=True, cols=COUNT_COLUMNS, verbose=1, handle_unknown=999
+    )
+
+    df_to_fit_le = pd.concat([df_full_train, df_full_val], axis=0)[df_full_test.columns]
+    # Encode train and test with LE
+    label_encoder.fit(df_to_fit_le)
     df_full_train[df_full_test.columns] = label_encoder.transform(
         df_full_train[df_full_test.columns]
     )
@@ -162,6 +198,20 @@ def preprocess_table(input_file_path, output_file_path):
     df_full_val[df_full_test.columns] = label_encoder.transform(
         df_full_val[df_full_test.columns]
     )
+    # Encode train and test with CE
+    count_encoder.fit(df_to_fit_le)
+    df_full_train[df_full_test.columns] = count_encoder.transform(
+        df_full_train[df_full_test.columns]
+    )
+    df_full_test = count_encoder.transform(df_full_test)
+    df_full_val[df_full_test.columns] = count_encoder.transform(
+        df_full_val[df_full_test.columns]
+    )
+
+
+
+
+
     #
     print(df_full_train.shape)
     print(df_full_test.shape)
