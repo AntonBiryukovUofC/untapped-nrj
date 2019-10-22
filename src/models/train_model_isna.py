@@ -37,7 +37,9 @@ class LogLGBM(LGBMRegressor):
         return preds
 
 
-def main(input_file_path, output_file_path, tgt="Oil_norm", n_splits=5):
+def main(input_file_path, output_file_path, tgt="Oil_norm", n_splits=5,
+         threshold = {'Oil_norm':55,'Water_norm':50,'Gas_norm':100}):
+
     input_file_name = os.path.join(input_file_path, "Train_final.pck")
     input_file_name_test = os.path.join(input_file_path, "Test_final.pck")
     input_file_name_val = os.path.join(input_file_path, "Validation_final.pck")
@@ -47,7 +49,6 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", n_splits=5):
     df = pd.read_pickle(input_file_name).drop(exclude_cols, axis=1)
     df_test = pd.read_pickle(input_file_name_test)
     df_val = pd.read_pickle(input_file_name_val).drop(exclude_cols, axis=1)
-    df_all = pd.concat([df, df_val], axis=0)
 
     ids = df_test["EPAssetsId"]
 
@@ -59,63 +60,65 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", n_splits=5):
     models = []
     scores = []
     scores_dm = []
-
-    y = df_all.loc[~df_all[tgt].isna(), tgt]
-    X = df_all.loc[~df_all[tgt].isna(), :].drop(
+    idx_condition = (~df[tgt].isna())
+    y = df.loc[idx_condition, tgt]
+    X = df.loc[idx_condition, :].drop(
         ["Oil_norm", "Gas_norm", "Water_norm", "EPAssetsId", "_Normalized`IP`BOE/d"],
         axis=1,
     )
     X_test = df_test.copy().drop("EPAssetsId", axis=1)
 
+    X_holdout, y_holdout = (
+        df_val.loc[~df_val[tgt].isna(), :].drop(
+            [
+                "Oil_norm",
+                "Gas_norm",
+                "Water_norm",
+                "EPAssetsId",
+                "_Normalized`IP`BOE/d",
+            ],
+            axis=1,
+        ),
+        df_val.loc[~df_val[tgt].isna(), tgt],
+    )
+    id_val = df_val.loc[~df_val[tgt].isna(), "EPAssetsId"]
     preds_test = np.zeros((n_splits, df_test.shape[0]))
-    preds_holdout = np.zeros((n_splits, X.shape[0]))
-    np.random.seed(123)
-    fr = np.random.uniform(low=-0.1,high=0.1,size = n_splits)
-    lam = np.random.uniform(low=-5, high=5, size=n_splits)
-    alpha = np.random.uniform(low=1, high=5, size=n_splits)
-    leaves = np.random.uniform(low=-15, high=10, size=n_splits).astype(int)
-
+    preds_holdout = np.zeros((n_splits, X_holdout.shape[0]))
 
     for k, (train_index, test_index) in enumerate(cv.split(X, y)):
-        X_train, X_holdout = X.iloc[train_index, :], X.iloc[test_index, :]
+        X_train, X_val = X.iloc[train_index, :], X.iloc[test_index, :]
 
         # model = LGBMRegressor(num_leaves=16, learning_rate=0.1, n_estimators=300, reg_lambda=30, reg_alpha=30,
         # objective='mae',random_state=123)
 
         model = LogLGBM(
-            num_leaves=32 + leaves[k],
-            bagging_fraction=0.5 + fr[k],
-            learning_rate=0.04,
-            n_estimators=3500,
-            reg_lambda=15 + lam[k],
-            reg_alpha=5 + alpha[k],
+            num_leaves=24,
+            learning_rate=0.05,
+            n_estimators=1500,
+            reg_lambda=0,
+            reg_alpha=0,
             objective="mse",
             random_state=123,
             feature_fraction=0.7,
         )
-        y_train, y_holdout = y.iloc[train_index], y.iloc[test_index]
+        y_train, y_val = y.iloc[train_index], y.iloc[test_index]
         geom_mean = gmean(y_train)
         dm = DummyRegressor(strategy="constant", constant=geom_mean)
 
-        model.fit(X_train, y_train, categorical_feature=CAT_COLUMNS,
-                  eval_set=(X_holdout, y_holdout),
-                  early_stopping_rounds=50,
-                  verbose=200
-                  )
+        model.fit(X_train, y_train, categorical_feature=CAT_COLUMNS)
         # model.fit(X_train, y_train)
         dm.fit(X_train, y_train)
 
         score = mean_absolute_error(y_holdout, model.predict(X_holdout))
-        score_dm = mean_absolute_error(y_holdout, dm.predict(X_holdout))
+        score_dm = mean_absolute_error(y_val, dm.predict(X_val))
 
         # logging.info(f' Score = {score}')
         models.append(model)
         scores.append(score)
-
         scores_dm.append((score_dm))
         logger.warning(f"Holdout score = {score}")
         preds_test[k, :] = model.predict(X_test).reshape(1, -1)
-        preds_holdout[k, test_index] = model.predict(X_holdout).reshape(1, -1)
+        preds_holdout[k, :] = model.predict(X_holdout).reshape(1, -1)
 
     with open(output_file_name, "wb") as f:
         pickle.dump(models, f)
@@ -126,11 +129,12 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", n_splits=5):
     preds_df = pd.DataFrame(
         {"EPAssetsID": ids, "UWI": ids_uwi, tgt: preds_test.mean(axis=0)}
     )
-    preds_df_val = pd.DataFrame({tgt: preds_holdout.mean(axis=0), "gt": y})
-    logger.warning(f"Final scores on holdout: {np.mean(scores)} +- {np.std(scores)}")
+    preds_df_val = pd.DataFrame({tgt: preds_holdout.mean(axis=0), "gt": y_holdout,'EPAssetsId':id_val})
+    score_holdout = mean_absolute_error(preds_df_val["gt"], preds_df_val[tgt])
+    logger.warning(f"Final score on holdout: {score_holdout}")
     print(eli5.format_as_dataframe(eli5.explain_weights(model)))
 
-    return preds_df, np.mean(scores)
+    return preds_df, score_holdout,preds_df_val
 
 
 if __name__ == "__main__":
@@ -143,13 +147,13 @@ if __name__ == "__main__":
     os.makedirs(input_file_path, exist_ok=True)
     os.makedirs(output_file_path, exist_ok=True)
 
-    preds_oil, score_holdout_oil = main(
+    preds_oil, score_holdout_oil,preds_oil_val = main(
         input_file_path, output_file_path, tgt="Oil_norm"
     )
-    preds_gas, score_holdout_gas = main(
+    preds_gas, score_holdout_gas,preds_gas_val = main(
         input_file_path, output_file_path, tgt="Gas_norm"
     )
-    preds_water, score_holdout_water = main(
+    preds_water, score_holdout_water,preds_water_val = main(
         input_file_path, output_file_path, tgt="Water_norm"
     )
     logger.warning(
@@ -168,4 +172,8 @@ if __name__ == "__main__":
         "_Normalized`IP`(Water`-`Bbls)",
     ]
     submission.to_csv(os.path.join(input_file_path, "submission_lgbm.txt"), index=False)
+
+    preds_oil_val.to_pickle(os.path.join(input_file_path,'preds_Oil_norm_validation.pck'))
+    preds_gas_val.to_pickle(os.path.join(input_file_path,'preds_Gas_norm_validation.pck'))
+    preds_water_val.to_pickle(os.path.join(input_file_path, 'preds_Water_norm_validation.pck'))
 # EPAssetsID,UWI,Oil_norm,Gas_norm,Water_norm
