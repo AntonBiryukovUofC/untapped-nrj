@@ -70,11 +70,9 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", n_splits=5):
     preds_test = np.zeros((n_splits, df_test.shape[0]))
     preds_holdout = np.zeros((n_splits, X.shape[0]))
     np.random.seed(123)
-    fr = np.random.uniform(low=-0.1,high=0.1,size = n_splits)
-    lam = np.random.uniform(low=-5, high=5, size=n_splits)
-    alpha = np.random.uniform(low=1, high=5, size=n_splits)
-    leaves = np.random.uniform(low=-15, high=10, size=n_splits).astype(int)
 
+
+    best_params = pd.read_csv(os.path.join(output_file_path,f'LGBM_{tgt}_feats_final_Trials.csv')).head(10)
 
     for k, (train_index, test_index) in enumerate(cv.split(X, y)):
         X_train, X_holdout = X.iloc[train_index, :], X.iloc[test_index, :]
@@ -82,16 +80,17 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", n_splits=5):
         # model = LGBMRegressor(num_leaves=16, learning_rate=0.1, n_estimators=300, reg_lambda=30, reg_alpha=30,
         # objective='mae',random_state=123)
 
+        params = best_params.iloc[0, :].to_dict()
         model = LogLGBM(
-            num_leaves=32 + leaves[k],
-            bagging_fraction=0.5 + fr[k],
-            learning_rate=0.04,
+            learning_rate=0.05,
             n_estimators=3500,
-            reg_lambda=15 + lam[k],
-            reg_alpha=5 + alpha[k],
             objective="mse",
-            random_state=123,
-            feature_fraction=0.7,
+            num_leaves=np.int(params['num_leaves']),
+            feature_fraction=params['feature_fraction'],
+            min_data_in_leaf=np.int(params['min_data_in_leaf']),
+            bagging_fraction=params['bagging_fraction'],
+            lambda_l1=params['lambda_l1'],
+            lambda_l2=params['lambda_l2']
         )
         y_train, y_holdout = y.iloc[train_index], y.iloc[test_index]
         geom_mean = gmean(y_train)
@@ -99,7 +98,7 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", n_splits=5):
 
         model.fit(X_train, y_train, categorical_feature=CAT_COLUMNS,
                   eval_set=(X_holdout, y_holdout),
-                  early_stopping_rounds=50,
+                  early_stopping_rounds=150,
                   verbose=200
                   )
         # model.fit(X_train, y_train)
