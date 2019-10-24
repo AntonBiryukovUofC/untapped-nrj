@@ -1,19 +1,18 @@
 import logging
 import os
 import pickle
-import random
-import eli5
-
 from pathlib import Path
-from scipy.stats.mstats import gmean
+
+import eli5
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import LabelEncoder
-from src.data.make_dataset import DATE_COLUMNS, CAT_COLUMNS,COUNT_COLUMNS
-from lightgbm import LGBMRegressor, LGBMModel
-from sklearn.model_selection import KFold
+from scipy.stats.mstats import gmean
 from sklearn.dummy import DummyRegressor
 from sklearn.metrics import mean_absolute_error
+from sklearn.model_selection import KFold
+from xgboost import XGBRegressor
+
+from src.data.make_dataset import CAT_COLUMNS
 
 project_dir = Path(__file__).resolve().parents[2]
 
@@ -24,15 +23,15 @@ log_fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 logging.basicConfig(level=logging.INFO, format=log_fmt)
 logger = logging.getLogger(__name__)
 
-class LogLGBM(LGBMRegressor):
+class LogXGB(XGBRegressor):
     def fit(self, X, Y, **kwargs):
         y_train = np.log(Y)
-        super(LogLGBM, self).fit(X, y_train, **kwargs)
+        super(LogXGB, self).fit(X, y_train, **kwargs)
 
         return self
 
     def predict(self, X):
-        preds = super(LogLGBM, self).predict(X)
+        preds = super(LogXGB, self).predict(X)
         preds = np.exp(preds)
         return preds
 
@@ -91,21 +90,19 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", n_splits=5,
         # model = LGBMRegressor(num_leaves=16, learning_rate=0.1, n_estimators=300, reg_lambda=30, reg_alpha=30,
         # objective='mae',random_state=123)
 
-        model = LogLGBM(
-            num_leaves=64,
-            learning_rate=0.05,
-            n_estimators=1500,
-            reg_lambda=2,
-            reg_alpha=2,
-            objective="mse",
-            random_state=123,
-            feature_fraction=0.7,
+        model = LogXGB(
+            max_depth =12,
+            eta = 0.05,
+            num_rounds=1500,
+            colsample_bytree=0.8,
+            gamma=0
+
         )
         y_train, y_val = y.iloc[train_index], y.iloc[test_index]
         geom_mean = gmean(y_train)
         dm = DummyRegressor(strategy="constant", constant=geom_mean)
 
-        model.fit(X_train, y_train, categorical_feature=CAT_COLUMNS+COUNT_COLUMNS)
+        model.fit(X_train, y_train)
         # model.fit(X_train, y_train)
         dm.fit(X_train, y_train)
 
