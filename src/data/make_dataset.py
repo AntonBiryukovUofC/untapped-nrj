@@ -65,7 +65,8 @@ COLS_TO_KEEP = (
     "_Max`Prod`(BOE),"
     "_Fracture`Stages,"
     "Confidential,SurfaceOwner,_Open`Hole,CompletionDate,Agent,ConfidentialReleaseDate,StatusDate,SurfAbandonDate,"
-    "Licensee,LicenseNumber,StatusSource,CurrentOperatorParent,LicenseDate,Municipality,OSArea,OSDeposit,PSACAreaCode,UnitName"
+    "Licensee,LicenseNumber,StatusSource,CurrentOperatorParent,LicenseDate,Municipality,OSArea,OSDeposit,"
+    "PSACAreaCode,UnitName,_Completion`Events"
 )
 CAT_COLUMNS = [
     "CurrentOperator",
@@ -83,7 +84,8 @@ CAT_COLUMNS = [
     "SurfaceOwner",
     "Agent",
     "StatusSource",
-    "Municipality"
+    "Municipality",
+    "CurrentOperatorParent"
 ]
 DATE_COLUMNS = [
     "ConfidentialReleaseDate",

@@ -20,8 +20,13 @@ def build_features(input_file_path, output_file_path, suffix="Train"):
     df.loc[df["Surf_Longitude"] > -70, "Surf_Longitude"] = np.nan
 
     for col in DATE_COLUMNS:
+        df[f'month_{col}'] = df[col].dt.month
+        df[f'year_{col}'] = df[col].dt.year
+        df[f'day_{col}'] = df[col].dt.day
         df[col] = (df[col] - pd.to_datetime("1970-01-01")).dt.total_seconds()
     df["timediff"] = df["SpudDate"] - df["SurfAbandonDate"]
+    df['depth'] = df['TVD'] - df['GroundElevation']
+    df['is_op'] = (df['Licensee']==df['CurrentOperator'])
     df["st_timediff"] = df["SpudDate"] - df["StatusDate"]
     df["cf_timediff"] = df["ConfidentialReleaseDate"] - df["SpudDate"]
     df["lic_timediff"] = df["LicenseDate"] - df["SpudDate"]
