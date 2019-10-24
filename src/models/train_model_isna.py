@@ -62,10 +62,10 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", n_splits=5):
     idx_condition = (~df[tgt].isna())
     y = df.loc[idx_condition, tgt]
     X = df.loc[idx_condition, :].drop(
-        ["Oil_norm", "Gas_norm", "Water_norm", "EPAssetsId", "_Normalized`IP`BOE/d"],
+        ["Oil_norm", "Gas_norm", "Water_norm", "_Normalized`IP`BOE/d"],
         axis=1,
     )
-    X_test = df_test.copy().drop("EPAssetsId", axis=1)
+    X_test = df_test.copy()
 
     X_holdout, y_holdout = (
         df_val.loc[~df_val[tgt].isna(), :].drop(
@@ -73,7 +73,6 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", n_splits=5):
                 "Oil_norm",
                 "Gas_norm",
                 "Water_norm",
-                "EPAssetsId",
                 "_Normalized`IP`BOE/d",
             ],
             axis=1,
@@ -92,9 +91,9 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", n_splits=5):
         params = best_params.iloc[k,:].to_dict()
         model = LogLGBM(
             learning_rate=0.05,
-            n_estimators=3500,
+            n_estimators=1500,
             objective="mse",
-            num_leaves=np.int(params['num_leaves'])*2,
+            num_leaves=np.int(params['num_leaves']),
             feature_fraction = params['feature_fraction'],
             min_data_in_leaf = np.int(params['min_data_in_leaf']),
             bagging_fraction = params['bagging_fraction'],
