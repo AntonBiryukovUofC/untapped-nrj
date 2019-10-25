@@ -134,3 +134,5 @@ if __name__ == '__main__':
     os.makedirs(output_file_path, exist_ok=True)
 
     main(input_file_path, tgt='Water_norm')
+    main(input_file_path, tgt='Gas_norm')
+    main(input_file_path, tgt='Oil_norm')

@@ -31,6 +31,7 @@ def build_features(input_file_path, output_file_path, suffix="Train"):
     df["cf_timediff"] = df["ConfidentialReleaseDate"] - df["SpudDate"]
     df["lic_timediff"] = df["LicenseDate"] - df["SpudDate"]
     df["LengthDrill"] = df["DaysDrilling"] * df["DrillMetresPerDay"]
+    df['normalized_boe'] = df['_Max`Prod`(BOE)']/df['HZLength']
     df["comp_timediff"] = df["CompletionDate"] - df["SpudDate"]
     df["final_timediff"] = df["FinalDrillDate"] - df["SpudDate"]
     df["rrd_timediff"] = df["RigReleaseDate"] - df["SpudDate"]
