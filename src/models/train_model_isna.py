@@ -9,7 +9,7 @@ from scipy.stats.mstats import gmean
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
-from src.data.make_dataset import DATE_COLUMNS, CAT_COLUMNS
+from src.data.make_dataset import DATE_COLUMNS, CAT_COLUMNS,COUNT_COLUMNS
 from lightgbm import LGBMRegressor, LGBMModel
 from sklearn.model_selection import KFold
 from sklearn.dummy import DummyRegressor
@@ -19,7 +19,8 @@ project_dir = Path(__file__).resolve().parents[2]
 
 
 # exclude_cols = ['FinalDrillDate', 'RigReleaseDate', 'SpudDate','UWI']
-exclude_cols = ["FinalDrillDate", "RigReleaseDate", "SpudDate", "UWI"]
+exclude_cols = ["FinalDrillDate", "RigReleaseDate", "SpudDate", "UWI","CompletionDate"]
+#exclude_cols = ["UWI","CompletionDate"]
 log_fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 logging.basicConfig(level=logging.INFO, format=log_fmt)
 logger = logging.getLogger(__name__)
@@ -105,7 +106,7 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", n_splits=5):
         geom_mean = gmean(y_train)
         dm = DummyRegressor(strategy="constant", constant=geom_mean)
 
-        model.fit(X_train, y_train, categorical_feature=CAT_COLUMNS)
+        model.fit(X_train, y_train,categorical_feature=CAT_COLUMNS)
         # model.fit(X_train, y_train)
         dm.fit(X_train, y_train)
 
@@ -117,7 +118,7 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", n_splits=5):
         scores.append(score)
         scores_dm.append((score_dm))
         logger.warning(f"Holdout score = {score}")
-        preds_test[k, :] = model.predict(X_test).reshape(1, -1)
+        #preds_test[k, :] = model.predict(X_test).reshape(1, -1)
         preds_holdout[k, :] = model.predict(X_holdout).reshape(1, -1)
 
     with open(output_file_name, "wb") as f:

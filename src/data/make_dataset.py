@@ -65,7 +65,7 @@ COLS_TO_KEEP = (
     "_Max`Prod`(BOE),"
     "_Fracture`Stages,"
     "Confidential,SurfaceOwner,_Open`Hole,CompletionDate,Agent,ConfidentialReleaseDate,StatusDate,SurfAbandonDate,"
-    "Licensee,LicenseNumber,StatusSource,CurrentOperatorParent,LicenseDate,Municipality,OSArea,OSDeposit,PSACAreaCode,UnitName"
+    "Licensee,LicenseNumber,StatusSource,CurrentOperatorParent,LicenceDate,Municipality,OSArea,OSDeposit,UnitName"
 )
 CAT_COLUMNS = [
     "CurrentOperator",
@@ -90,12 +90,11 @@ DATE_COLUMNS = [
     "SurfAbandonDate",
     "SpudDate",
     "StatusDate",
-    "LicenseDate",
-    "CompletionDate",
+    "LicenceDate",
     "FinalDrillDate",
     "RigReleaseDate",
 ]# DATE_COLUMNS = []
-COUNT_COLUMNS = ["LicenseNumber", "OSDeposit", "OSArea", "PSACAreaCode", "UnitName"]
+COUNT_COLUMNS = ["LicenseNumber", "OSDeposit", "OSArea", "UnitName"]
 
 project_dir = Path(__file__).resolve().parents[2]
 cols = COLS_TO_KEEP.split(",")
