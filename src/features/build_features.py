@@ -17,22 +17,15 @@ def build_features(input_file_path, output_file_path, suffix="Train"):
     output_file_name = os.path.join(output_file_path, f"{suffix}_final.pck")
 
     df = pd.read_pickle(input_filename)
-    df.loc[df["Surf_Longitude"] > -70, "Surf_Longitude"] = np.nan
+    #df.loc[df["Surf_Longitude"] > -70, "Surf_Longitude"] = np.nan
 
     for col in DATE_COLUMNS:
-        df[f'month_{col}'] = df[col].dt.month
-        df[f'year_{col}'] = df[col].dt.year
-        df[f'day_{col}'] = df[col].dt.day
         df[col] = (df[col] - pd.to_datetime("1970-01-01")).dt.total_seconds()
     df["timediff"] = df["SpudDate"] - df["SurfAbandonDate"]
-    df['depth'] = df['TVD'] - df['GroundElevation']
-    df['is_op'] = (df['Licensee']==df['CurrentOperator'])
     df["st_timediff"] = df["SpudDate"] - df["StatusDate"]
     df["cf_timediff"] = df["ConfidentialReleaseDate"] - df["SpudDate"]
-    df["lic_timediff"] = df["LicenseDate"] - df["SpudDate"]
+    df["lic_timediff"] = df["LicenceDate"] - df["SpudDate"]
     df["LengthDrill"] = df["DaysDrilling"] * df["DrillMetresPerDay"]
-    df['normalized_boe'] = df['_Max`Prod`(BOE)']/df['HZLength']
-    df["comp_timediff"] = df["CompletionDate"] - df["SpudDate"]
     df["final_timediff"] = df["FinalDrillDate"] - df["SpudDate"]
     df["rrd_timediff"] = df["RigReleaseDate"] - df["SpudDate"]
 

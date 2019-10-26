@@ -19,7 +19,8 @@ project_dir = Path(__file__).resolve().parents[2]
 
 
 # exclude_cols = ['FinalDrillDate', 'RigReleaseDate', 'SpudDate','UWI']
-exclude_cols = ["FinalDrillDate", "RigReleaseDate", "SpudDate", "UWI"]
+exclude_cols = ["FinalDrillDate", "RigReleaseDate", "SpudDate", "UWI","CompletionDate"]
+#exclude_cols = ["UWI","CompletionDate"]
 log_fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 logging.basicConfig(level=logging.INFO, format=log_fmt)
 logger = logging.getLogger(__name__)
@@ -37,8 +38,7 @@ class LogLGBM(LGBMRegressor):
         return preds
 
 
-def main(input_file_path, output_file_path, tgt="Oil_norm", n_splits=5,
-         threshold = {'Oil_norm':55,'Water_norm':50,'Gas_norm':100}):
+def main(input_file_path, output_file_path, tgt="Oil_norm", n_splits=5):
 
     input_file_name = os.path.join(input_file_path, "Train_final.pck")
     input_file_name_test = os.path.join(input_file_path, "Test_final.pck")
@@ -84,28 +84,29 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", n_splits=5,
     id_val = df_val.loc[~df_val[tgt].isna(), "EPAssetsId"]
     preds_test = np.zeros((n_splits, df_test.shape[0]))
     preds_holdout = np.zeros((n_splits, X_holdout.shape[0]))
-
+    best_params = pd.read_csv(os.path.join(output_file_path,f'LGBM_{tgt}_feats_final_Trials.csv')).head(10)
     for k, (train_index, test_index) in enumerate(cv.split(X, y)):
         X_train, X_val = X.iloc[train_index, :], X.iloc[test_index, :]
 
         # model = LGBMRegressor(num_leaves=16, learning_rate=0.1, n_estimators=300, reg_lambda=30, reg_alpha=30,
         # objective='mae',random_state=123)
-
+        params = best_params.iloc[k,:].to_dict()
         model = LogLGBM(
-            num_leaves=64,
             learning_rate=0.05,
-            n_estimators=1500,
-            reg_lambda=2,
-            reg_alpha=2,
+            n_estimators=3500,
             objective="mse",
-            random_state=123,
-            feature_fraction=0.7,
+            num_leaves=np.int(params['num_leaves']),
+            feature_fraction = params['feature_fraction'],
+            min_data_in_leaf = np.int(params['min_data_in_leaf']),
+            bagging_fraction = params['bagging_fraction'],
+            lambda_l1 = params['lambda_l1'],
+            lambda_l2=params['lambda_l2']
         )
         y_train, y_val = y.iloc[train_index], y.iloc[test_index]
         geom_mean = gmean(y_train)
         dm = DummyRegressor(strategy="constant", constant=geom_mean)
 
-        model.fit(X_train, y_train, categorical_feature=CAT_COLUMNS+COUNT_COLUMNS)
+        model.fit(X_train, y_train,categorical_feature=CAT_COLUMNS)
         # model.fit(X_train, y_train)
         dm.fit(X_train, y_train)
 
@@ -117,7 +118,7 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", n_splits=5,
         scores.append(score)
         scores_dm.append((score_dm))
         logger.warning(f"Holdout score = {score}")
-        preds_test[k, :] = model.predict(X_test).reshape(1, -1)
+        #preds_test[k, :] = model.predict(X_test).reshape(1, -1)
         preds_holdout[k, :] = model.predict(X_holdout).reshape(1, -1)
 
     with open(output_file_name, "wb") as f:

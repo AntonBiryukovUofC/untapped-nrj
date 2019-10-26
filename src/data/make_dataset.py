@@ -58,15 +58,14 @@ COLS_TO_KEEP = (
     "EPAssetsId,UWI,CurrentOperator,"
     "WellType,"
     "Formation,Field,Pool,"
-    "Surf_Longitude,Surf_Latitude,BH_Longitude,BH_Latitude,"
+    "Surf_Longitude,Surf_Latitude,"
     "GroundElevation,KBElevation,TotalDepth,LaheeClass,"
     "DrillingContractor,SpudDate,FinalDrillDate,RigReleaseDate,DaysDrilling,DrillMetresPerDay,TVD,"
     "WellProfile,ProjectedDepth,"
     "_Max`Prod`(BOE),"
     "_Fracture`Stages,"
     "Confidential,SurfaceOwner,_Open`Hole,CompletionDate,Agent,ConfidentialReleaseDate,StatusDate,SurfAbandonDate,"
-    "Licensee,LicenceNumber,StatusSource,CurrentOperatorParent,LicenseDate,Municipality,OSArea,OSDeposit,"
-    "PSACAreaCode,UnitName,_Completion`Events"
+    "Licensee,LicenseNumber,StatusSource,CurrentOperatorParent,LicenceDate,Municipality,OSArea,OSDeposit,UnitName"
 )
 CAT_COLUMNS = [
     "CurrentOperator",
@@ -84,20 +83,18 @@ CAT_COLUMNS = [
     "SurfaceOwner",
     "Agent",
     "StatusSource",
-    "Municipality",
-    "CurrentOperatorParent"
+    "Municipality"
 ]
 DATE_COLUMNS = [
     "ConfidentialReleaseDate",
     "SurfAbandonDate",
     "SpudDate",
     "StatusDate",
-    "LicenseDate",
-    "CompletionDate",
+    "LicenceDate",
     "FinalDrillDate",
     "RigReleaseDate",
 ]# DATE_COLUMNS = []
-COUNT_COLUMNS = ["LicenceNumber", "OSDeposit", "OSArea", "PSACAreaCode", "UnitName"]
+COUNT_COLUMNS = ["LicenseNumber", "OSDeposit", "OSArea", "UnitName"]
 
 project_dir = Path(__file__).resolve().parents[2]
 cols = COLS_TO_KEEP.split(",")
