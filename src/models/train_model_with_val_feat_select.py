@@ -17,19 +17,7 @@ from sklearn.metrics import mean_absolute_error
 
 project_dir = Path(__file__).resolve().parents[2]
 
-exclude_cols = ["UWI", "CompletionDate", 'DaysDrilling',
-                'DrillMetresPerDay',
-                'GroundElevation',
-                'HZLength',
-                'LengthDrill',
-                'Municipality',
-                'Pool',
-                'SurfaceOwner',
-                '_Fracture`Stages',
-                'final_timediff',
-                'lic_timediff',
-                'rrd_timediff',
-                'st_timediff']
+
 
 exclude_cols_oil = ["UWI", "CompletionDate", 'DaysDrilling',
                     'DrillMetresPerDay',
@@ -69,6 +57,29 @@ exclude_cols_gas = ['ConfidentialReleaseDate', "UWI", "CompletionDate",
                     'final_timediff',
                     'rrd_timediff',
                     'st_timediff']
+exclude_cols_water = ['ConfidentialReleaseDate',"UWI", "CompletionDate",
+                      'DaysDrilling',
+                      'DrillMetresPerDay',
+                      'FinalDrillDate',
+                      'GroundElevation',
+                      'HZLength',
+                      'KBElevation',
+                      'LaheeClass',
+                      'LicenceDate',
+                      'Licensee',
+                      'ProjectedDepth',
+                      'SpudDate',
+                      'TotalDepth',
+                      '_Fracture`Stages',
+                      'cf_timediff',
+                      'final_timediff',
+                      'lic_timediff',
+                      'rrd_timediff',
+                      'st_timediff']
+
+exclude_cols_dict = {'Oil_norm': exclude_cols_oil,
+                     'Gas_norm': exclude_cols_gas,
+                     'Water_norm': exclude_cols_water}
 
 log_fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 logging.basicConfig(level=logging.INFO, format=log_fmt)
@@ -92,7 +103,7 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=No
     input_file_name = os.path.join(input_file_path, "Train_final.pck")
     input_file_name_test = os.path.join(input_file_path, "Test_final.pck")
     input_file_name_val = os.path.join(input_file_path, "Validation_final.pck")
-
+    exclude_cols = exclude_cols_dict.get(tgt)
     output_file_name = os.path.join(output_file_path, f"models_lgbm_{tgt}.pck")
 
     df = pd.read_pickle(input_file_name).drop(exclude_cols, axis=1)
