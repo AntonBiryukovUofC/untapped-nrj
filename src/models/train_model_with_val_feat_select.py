@@ -17,11 +17,6 @@ from sklearn.metrics import mean_absolute_error
 
 project_dir = Path(__file__).resolve().parents[2]
 
-# exclude_cols = ['FinalDrillDate', 'RigReleaseDate', 'SpudDate','UWI']
-# exclude_cols = ["FinalDrillDate", "RigReleaseDate", "SpudDate", "UWI", "LicenceDate", "CompletionDate",
-#                 "DrillMetresPerDay",
-#                 "Confidential", "OSArea", "OSDeposit", "Agent", "LicenseNumber", "SurfAbandonDate", "timediff",
-#                 "_Open`Hole", "LaheeClass"]
 exclude_cols = ["UWI", "CompletionDate", 'DaysDrilling',
                 'DrillMetresPerDay',
                 'GroundElevation',
@@ -37,22 +32,43 @@ exclude_cols = ["UWI", "CompletionDate", 'DaysDrilling',
                 'st_timediff']
 
 exclude_cols_oil = ["UWI", "CompletionDate", 'DaysDrilling',
-                'DrillMetresPerDay',
-                'GroundElevation',
-                'HZLength',
-                'LengthDrill',
-                'Municipality',
-                'Pool',
-                'SurfaceOwner',
-                '_Fracture`Stages',
-                'final_timediff',
-                'lic_timediff',
-                'rrd_timediff',
-                'st_timediff']
+                    'DrillMetresPerDay',
+                    'GroundElevation',
+                    'HZLength',
+                    'LengthDrill',
+                    'Municipality',
+                    'Pool',
+                    'SurfaceOwner',
+                    '_Fracture`Stages',
+                    'final_timediff',
+                    'lic_timediff',
+                    'rrd_timediff',
+                    'st_timediff']
 
-
-
-
+exclude_cols_gas = ['ConfidentialReleaseDate', "UWI", "CompletionDate",
+                    'CurrentOperator',
+                    'DaysDrilling',
+                    'DrillMetresPerDay',
+                    'DrillingContractor',
+                    'FinalDrillDate',
+                    'KBElevation',
+                    'LengthDrill',
+                    'LicenceDate',
+                    'Municipality',
+                    'Pool',
+                    'ProjectedDepth',
+                    'RigReleaseDate',
+                    'SpudDate',
+                    'StatusSource',
+                    'SurfaceOwner',
+                    'TVD',
+                    'TotalDepth',
+                    'UnitName',
+                    '_Fracture`Stages',
+                    'cf_timediff',
+                    'final_timediff',
+                    'rrd_timediff',
+                    'st_timediff']
 
 log_fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 logging.basicConfig(level=logging.INFO, format=log_fmt)
@@ -134,7 +150,6 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=No
         y_train, y_holdout = y.iloc[train_index], y.iloc[test_index]
         geom_mean = gmean(y_train)
         dm = DummyRegressor(strategy="constant", constant=geom_mean)
-
 
         model.fit(X_train, y_train, categorical_feature=set(CAT_COLUMNS) - set(exclude_cols),
                   eval_set=(X_holdout, y_holdout),
