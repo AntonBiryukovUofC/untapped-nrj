@@ -18,6 +18,10 @@ def build_features(input_file_path, output_file_path, suffix="Train"):
 
     df = pd.read_pickle(input_filename)
     #df.loc[df["Surf_Longitude"] > -70, "Surf_Longitude"] = np.nan
+    # for col in ['RigReleaseDate','SpudDate']:
+    #     df[f'{col}_month']=df[col].dt.month
+    #     df[f'{col}_year'] = df[col].dt.year
+    #     df[f'{col}_day'] = df[col].dt.day
 
     for col in DATE_COLUMNS:
         df[col] = (df[col] - pd.to_datetime("1970-01-01")).dt.total_seconds()
