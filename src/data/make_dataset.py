@@ -58,14 +58,14 @@ COLS_TO_KEEP = (
     "EPAssetsId,UWI,CurrentOperator,"
     "WellType,"
     "Formation,Field,Pool,"
-    "Surf_Longitude,Surf_Latitude,"
+    "Surf_Longitude,Surf_Latitude,BH_Longitude,BH_Latitude,"
     "GroundElevation,KBElevation,TotalDepth,LaheeClass,"
-    "DrillingContractor,SpudDate,FinalDrillDate,RigReleaseDate,DaysDrilling,DrillMetresPerDay,TVD,"
+    "DrillingContractor,SpudDate,RigReleaseDate,DaysDrilling,DrillMetresPerDay,TVD,"
     "WellProfile,ProjectedDepth,"
     "_Max`Prod`(BOE),"
     "_Fracture`Stages,"
-    "Confidential,SurfaceOwner,_Open`Hole,CompletionDate,Agent,ConfidentialReleaseDate,StatusDate,SurfAbandonDate,"
-    "Licensee,LicenseNumber,StatusSource,CurrentOperatorParent,LicenceDate,Municipality,OSArea,OSDeposit,UnitName"
+    "Confidential,SurfaceOwner,_Open`Hole,CompletionDate,Agent,ConfidentialReleaseDate,StatusDate,SurfAbandonDate,FinalDrillDate,"
+    "Licensee,LicenceNumber,StatusSource,CurrentOperatorParent,LicenceDate,Municipality,OSArea,OSDeposit,UnitName"
 )
 CAT_COLUMNS = [
     "CurrentOperator",
@@ -94,7 +94,7 @@ DATE_COLUMNS = [
     "FinalDrillDate",
     "RigReleaseDate",
 ]# DATE_COLUMNS = []
-COUNT_COLUMNS = ["LicenseNumber", "OSDeposit", "OSArea", "UnitName"]
+COUNT_COLUMNS = ["OSDeposit", "OSArea", "UnitName"]
 
 project_dir = Path(__file__).resolve().parents[2]
 cols = COLS_TO_KEEP.split(",")
@@ -145,7 +145,8 @@ def read_table(input_file_path, logger, output_file_path, suffix):
 
     df_full["HZLength"] = df_full["TotalDepth"] - df_full["TVD"]
     # Clip to max of 35 days of drilling (?)
-    df_full["DaysDrilling"] = np.clip(df_full["DaysDrilling"], a_min=None, a_max=35)
+    #df_full["DaysDrilling"] = np.clip(df_full["DaysDrilling"], a_min=None, a_max=35)
+
     logger.info(f"Shape feature = {df_full.shape} {suffix}")
     for c in DATE_COLUMNS:
         logger.info(f"to DT: {c}")
@@ -181,13 +182,15 @@ def preprocess_table(input_file_path, output_file_path):
         df_full_test[cat] = df_full_test[cat].astype(str)
         df_full_val[cat] = df_full_val[cat].astype(str)
 
+    CALC_COUNT_COLUMNS = []
+    df_to_fit_le = pd.concat([df_full_train, df_full_val], axis=0)[df_full_test.columns]
+
     # Label encode categoricals
     label_encoder = ce.OrdinalEncoder(return_df=True, cols=CAT_COLUMNS, verbose=1)
     count_encoder = ce.CountEncoder(
-        return_df=True, cols=COUNT_COLUMNS, verbose=1, handle_unknown=999
+        return_df=True, cols=COUNT_COLUMNS+CALC_COUNT_COLUMNS, verbose=1, handle_unknown=999
     )
 
-    df_to_fit_le = pd.concat([df_full_train, df_full_val], axis=0)[df_full_test.columns]
     # Encode train and test with LE
     label_encoder.fit(df_to_fit_le)
     df_full_train[df_full_test.columns] = label_encoder.transform(

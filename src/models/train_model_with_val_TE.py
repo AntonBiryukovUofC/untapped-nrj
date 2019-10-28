@@ -8,7 +8,7 @@ from pathlib import Path
 from scipy.stats.mstats import gmean
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import LabelEncoder
+from category_encoders import TargetEncoder
 from src.data.make_dataset import DATE_COLUMNS, CAT_COLUMNS
 from lightgbm import LGBMRegressor, LGBMModel
 from sklearn.model_selection import KFold
@@ -18,11 +18,6 @@ from sklearn.metrics import mean_absolute_error
 project_dir = Path(__file__).resolve().parents[2]
 
 
-def mean_log(preds):
-    lpreds =np.log1p(preds)
-    mean_preds = np.mean(lpreds,axis=0)
-    final_preds = np.expm1(mean_preds)
-    return final_preds
 
 exclude_cols_oil = ["UWI", "CompletionDate", 'DaysDrilling',
                     'DrillMetresPerDay',
@@ -90,10 +85,17 @@ log_fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 logging.basicConfig(level=logging.INFO, format=log_fmt)
 logger = logging.getLogger(__name__)
 
+def mean_log(preds):
+    lpreds =np.log1p(preds)
+    mean_preds = np.mean(lpreds,axis=0)
+    final_preds = np.expm1(mean_preds)
+    return final_preds
+
 
 class LogLGBM(LGBMRegressor):
     def fit(self, X, Y, **kwargs):
         y_train = np.log1p(Y)
+
         super(LogLGBM, self).fit(X, y_train, **kwargs)
 
         return self
@@ -104,7 +106,7 @@ class LogLGBM(LGBMRegressor):
         return preds
 
 
-def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=None, n_splits=11):
+def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=None, n_splits=5):
     input_file_name = os.path.join(input_file_path, "Train_final.pck")
     input_file_name_test = os.path.join(input_file_path, "Test_final.pck")
     input_file_name_val = os.path.join(input_file_path, "Validation_final.pck")
@@ -150,7 +152,7 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=No
         # model = LGBMRegressor(num_leaves=16, learning_rate=0.1, n_estimators=300, reg_lambda=30, reg_alpha=30,
         # objective='mae',random_state=123)
 
-        params = best_params.iloc[k, :].to_dict()
+        params = best_params.iloc[0, :].to_dict()
         model = LogLGBM(
             learning_rate=0.05,
             n_estimators=3500,
@@ -161,13 +163,21 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=No
             bagging_fraction=params['bagging_fraction'],
             lambda_l1=params['lambda_l1'],
             lambda_l2=params['lambda_l2'],
-            random_state=k
+            random_state=123
         )
         y_train, y_holdout = y.iloc[train_index], y.iloc[test_index]
-        geom_mean = gmean(y_train)
+        geom_mean = y_train.mean()
         dm = DummyRegressor(strategy="constant", constant=geom_mean)
+        cat_cols = list(set(CAT_COLUMNS) - set(exclude_cols))
+        TE = TargetEncoder(cols=cat_cols).fit(X_train,y_train)
+        X_train = TE.transform(X_train,y_train)
+        X_holdout = TE.transform(X_holdout)
+        X_test = TE.transform(X_test)
 
-        model.fit(X_train, y_train, categorical_feature=set(CAT_COLUMNS) - set(exclude_cols),
+
+
+
+        model.fit(X_train, y_train,
                   eval_set=(X_holdout, y_holdout),
                   early_stopping_rounds=150,
                   verbose=200
@@ -195,9 +205,6 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=No
     logger.info(f"Mean scores LGBM = {np.mean(scores)}")
     logger.info(f"Mean scores Dummy = {np.mean(scores_dm)}")
 
-    # preds_df = pd.DataFrame(
-    #     {"EPAssetsID": ids, "UWI": ids_uwi, tgt: preds_test.mean(axis=0)}
-    # )
     preds_df = pd.DataFrame(
         {"EPAssetsID": ids, "UWI": ids_uwi, tgt: mean_log(preds_test)}
     )
