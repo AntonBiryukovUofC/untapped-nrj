@@ -14,7 +14,7 @@ from lightgbm import LGBMRegressor, LGBMModel
 from sklearn.model_selection import KFold
 from sklearn.dummy import DummyRegressor
 from sklearn.metrics import mean_absolute_error
-
+from sklearn.preprocessing import PowerTransformer,FunctionTransformer
 project_dir = Path(__file__).resolve().parents[2]
 
 
@@ -93,16 +93,28 @@ logger = logging.getLogger(__name__)
 threshold_dict = {}
 
 class LogLGBM(LGBMRegressor):
+    def __init__(self, target=None, **kwargs):
+        super().__init__(**kwargs)
+        if target == "Oil_norm":
+            self.target_scaler = PowerTransformer(method='box-cox', standardize=False)
+        elif target == 'Gas_norm':
+            self.target_scaler = FunctionTransformer(func=np.log1p,inverse_func=np.expm1)
+        elif target == 'Water_norm':
+            self.target_scaler = FunctionTransformer(func=np.log1p,inverse_func=np.expm1)
+
+
     def fit(self, X, Y, **kwargs):
-        y_train = np.log1p(Y)
+        #y_train = np.log1p(Y)
+        self.target_scaler.fit(Y.values.reshape(-1,1)+1)
+        y_train = pd.Series(self.target_scaler.transform(Y.values.reshape(-1,1)+1).reshape(-1,))
         super(LogLGBM, self).fit(X, y_train, **kwargs)
 
         return self
 
     def predict(self, X):
-        preds = super(LogLGBM, self).predict(X)
-        preds = np.expm1(preds)
-        return preds
+        preds = super(LogLGBM, self).predict(X).reshape(-1, 1)
+        preds = self.target_scaler.inverse_transform(preds)-1
+        return preds[:,0]
 
 
 def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=None, n_splits=11):
@@ -136,9 +148,9 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=No
         axis=1,
     )
     # Filter large vals
-    condition = y < threshold_dict[tgt]
-    X = X.loc[condition,:]
-    y = y.loc[condition]
+    # condition = y < threshold_dict[tgt]
+    # X = X.loc[condition,:]
+    # y = y.loc[condition]
 
     X_test = df_test.copy().drop("EPAssetsId", axis=1)
 
@@ -167,7 +179,8 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=No
             bagging_fraction=params['bagging_fraction'],
             lambda_l1=params['lambda_l1'],
             lambda_l2=params['lambda_l2'],
-            random_state=k
+            random_state=k,
+            target=tgt
         )
         y_train, y_holdout = y.iloc[train_index], y.iloc[test_index]
         geom_mean = gmean(y_train)
@@ -180,8 +193,9 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=No
                   )
         # model.fit(X_train, y_train)
         dm.fit(X_train, y_train)
-
-        score = mean_absolute_error(y_holdout, model.predict(X_holdout))
+        y_pred_holdout = model.predict(X_holdout)
+        y_pred_holdout[np.isnan(y_pred_holdout)] = np.nanmean(y_pred_holdout)
+        score = mean_absolute_error(y_holdout, y_pred_holdout)
         score_dm = mean_absolute_error(y_holdout, dm.predict(X_holdout))
 
         # logging.info(f' Score = {score}')
@@ -191,9 +205,9 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=No
         scores_dm.append((score_dm))
         logger.warning(f"Holdout score = {score}")
         preds_test[k, :] = model.predict(X_test)
-        preds_holdout.append(model.predict(X_holdout).reshape(1, -1))
+        preds_holdout.append(y_pred_holdout.reshape(1, -1))
         y_true.append(y_holdout.values.reshape(1, -1))
-        print(mean_absolute_error(y_holdout.values.reshape(1, -1), model.predict(X_holdout).reshape(1, -1)))
+        print(mean_absolute_error(y_holdout.values.reshape(1, -1), y_pred_holdout.reshape(1, -1)))
 
     with open(output_file_name, "wb") as f:
         pickle.dump(models, f)
@@ -229,12 +243,14 @@ if __name__ == "__main__":
     os.makedirs(input_file_path, exist_ok=True)
     os.makedirs(output_file_path, exist_ok=True)
 
-    preds_oil, preds_val_oil, score_holdout_oil = main(
-        input_file_path, output_file_path, "Oil_norm", interim_file_path
-    )
     preds_gas, preds_val_gas, score_holdout_gas = main(
         input_file_path, output_file_path, "Gas_norm", interim_file_path
     )
+
+    preds_oil, preds_val_oil, score_holdout_oil = main(
+        input_file_path, output_file_path, "Oil_norm", interim_file_path
+    )
+
     preds_water, preds_val_water, score_holdout_water = main(
         input_file_path, output_file_path, "Water_norm", interim_file_path
     )
