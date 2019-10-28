@@ -18,11 +18,15 @@ from sklearn.preprocessing import PowerTransformer,FunctionTransformer
 project_dir = Path(__file__).resolve().parents[2]
 
 
+# def mean_log(preds):
+#     lpreds =np.log1p(preds)
+#     mean_preds = np.mean(lpreds,axis=0)
+#     final_preds = np.expm1(mean_preds)
+#     return final_preds
 def mean_log(preds):
-    lpreds =np.log1p(preds)
-    mean_preds = np.mean(lpreds,axis=0)
-    final_preds = np.expm1(mean_preds)
+    final_preds = gmean(preds,axis=0)
     return final_preds
+
 
 exclude_cols_oil = ["UWI", "CompletionDate", 'DaysDrilling',
                     'DrillMetresPerDay',
@@ -167,10 +171,12 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=No
         print(X_train.shape)
         # model = LGBMRegressor(num_leaves=16, learning_rate=0.1, n_estimators=300, reg_lambda=30, reg_alpha=30,
         # objective='mae',random_state=123)
-
-        params = best_params.iloc[k, :].to_dict()
+        if tgt == 'Oil_norm':
+            params = best_params.iloc[k, :].to_dict()
+        else:
+            params = best_params.iloc[0, :].to_dict()
         model = LogLGBM(
-            learning_rate=0.05,
+            learning_rate=0.04,
             n_estimators=3500,
             objective="mse",
             num_leaves=np.int(params['num_leaves']),
@@ -194,7 +200,6 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=No
         # model.fit(X_train, y_train)
         dm.fit(X_train, y_train)
         y_pred_holdout = model.predict(X_holdout)
-        y_pred_holdout[np.isnan(y_pred_holdout)] = np.nanmean(y_pred_holdout)
         score = mean_absolute_error(y_holdout, y_pred_holdout)
         score_dm = mean_absolute_error(y_holdout, dm.predict(X_holdout))
 
