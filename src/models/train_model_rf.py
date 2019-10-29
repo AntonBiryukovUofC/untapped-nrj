@@ -11,6 +11,7 @@ import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 from src.data.make_dataset import DATE_COLUMNS, CAT_COLUMNS
 from lightgbm import LGBMRegressor, LGBMModel
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import KFold,StratifiedKFold
 from sklearn.dummy import DummyRegressor
 from sklearn.metrics import mean_absolute_error
@@ -102,12 +103,11 @@ logger = logging.getLogger(__name__)
 
 threshold_dict = {}
 
-class LogLGBM(LGBMRegressor):
+class LogRF(RandomForestRegressor):
     def __init__(self, target=None, **kwargs):
         super().__init__(**kwargs)
         if target == "Oil_norm":
-            #self.target_scaler = PowerTransformer(method='box-cox', standardize=False)
-            self.target_scaler = FunctionTransformer(func=np.sqrt,inverse_func=np.square)
+            self.target_scaler = PowerTransformer(method='box-cox', standardize=False)
         elif target == 'Gas_norm':
             self.target_scaler = FunctionTransformer(func=np.log1p,inverse_func=np.expm1)
         elif target == 'Water_norm':
@@ -118,18 +118,18 @@ class LogLGBM(LGBMRegressor):
         #y_train = np.log1p(Y)
         self.target_scaler.fit(Y.values.reshape(-1,1)+1)
         y_train = pd.Series(self.target_scaler.transform(Y.values.reshape(-1,1)+1).reshape(-1,))
-        super(LogLGBM, self).fit(X, y_train, **kwargs)
+        super(RandomForestRegressor, self).fit(X, y_train, **kwargs)
 
         return self
 
     def predict(self, X):
-        preds = super(LogLGBM, self).predict(X).reshape(-1, 1)
+        preds = super(RandomForestRegressor, self).predict(X).reshape(-1, 1)
         preds = self.target_scaler.inverse_transform(preds)-1
         return preds[:,0]
 
 condition_dict = {'Oil_norm':[0,1e5],'Gas_norm':[0.02,1e5],'Water_norm':[0.01,1e5]}
 
-def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=None, n_splits=11):
+def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=None, n_splits=5):
 
 
     condition = condition_dict[tgt]
@@ -189,18 +189,10 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=No
             params = best_params.iloc[k, :].to_dict()
         else:
             params = best_params.iloc[0, :].to_dict()
-        model = LogLGBM(
-            learning_rate=0.04,
-            n_estimators=3500,
-            objective="mse",
-            num_leaves=np.int(params['num_leaves']),
-            feature_fraction=params['feature_fraction'],
-            min_data_in_leaf=np.int(params['min_data_in_leaf']),
-            bagging_fraction=params['bagging_fraction'],
-            lambda_l1=params['lambda_l1'],
-            lambda_l2=params['lambda_l2'],
-            random_state=k,
-            target=tgt
+
+        model = LogRF(target=tgt,
+        max_depth=25,
+        n_estimators=300
         )
         y_train, y_holdout = y.iloc[train_index], y.iloc[test_index]
         idx = (y_train > condition[0]) & (y_train < condition[1])
@@ -215,12 +207,11 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=No
         y_holdout = y_holdout.fillna(value=0)
         geom_mean = gmean(y_train)
         dm = DummyRegressor(strategy="constant", constant=geom_mean)
+        X_train = X_train.fillna(-999)
+        X_holdout = X_holdout.fillna(-999)
+        X_test = X_test.fillna(-999)
 
-        model.fit(X_train, y_train, categorical_feature=set(CAT_COLUMNS) - set(exclude_cols),
-                  eval_set=(X_holdout, y_holdout),
-                  early_stopping_rounds=150,
-                  verbose=200
-                  )
+        model.fit(X_train, y_train)
         # model.fit(X_train, y_train)
         dm.fit(X_train, y_train)
         y_pred_holdout = model.predict(X_holdout)
