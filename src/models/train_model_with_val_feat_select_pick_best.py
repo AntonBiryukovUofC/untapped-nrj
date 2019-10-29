@@ -99,7 +99,7 @@ class LogLGBM(LGBMRegressor):
         return preds
 
 
-def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=None, n_splits=7):
+def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=None, n_splits=11):
     input_file_name = os.path.join(input_file_path, "Train_final.pck")
     input_file_name_test = os.path.join(input_file_path, "Test_final.pck")
     input_file_name_val = os.path.join(input_file_path, "Validation_final.pck")
@@ -125,6 +125,8 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=No
     scores_dm = []
 
     y = df_all.loc[~df_all[tgt].isna(), tgt]
+    id_X =df_all.loc[~df_all[tgt].isna(),["EPAssetsId"]]
+
     X = df_all.loc[~df_all[tgt].isna(), :].drop(
         ["Oil_norm", "Gas_norm", "Water_norm", "EPAssetsId", "_Normalized`IP`BOE/d"],
         axis=1,
@@ -134,6 +136,7 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=No
     preds_test = np.zeros((n_splits, df_test.shape[0]))
     preds_holdout = []
     y_true = []
+    id_list=[]
 
     np.random.seed(123)
 
@@ -141,6 +144,7 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=No
     datasets = {}
     for k, (train_index, test_index) in enumerate(cv.split(X, y)):
         X_train, X_holdout = X.iloc[train_index, :], X.iloc[test_index, :]
+        id_X_holdout = id_X.iloc[test_index]
 
         # model = LGBMRegressor(num_leaves=16, learning_rate=0.1, n_estimators=300, reg_lambda=30, reg_alpha=30,
         # objective='mae',random_state=123)
@@ -182,6 +186,8 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=No
         preds_test[k, :] = model.predict(X_test)
         preds_holdout.append(model.predict(X_holdout).reshape(1, -1))
         y_true.append(y_holdout.values.reshape(1, -1))
+        id_list.append(id_X_holdout.values.reshape(1,-1))
+
         print(mean_absolute_error(y_holdout.values.reshape(1, -1), model.predict(X_holdout).reshape(1, -1)))
 
     with open(output_file_name, "wb") as f:
@@ -194,7 +200,7 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=No
         {"EPAssetsID": ids, "UWI": ids_uwi, tgt: preds_test.mean(axis=0)}
     )
     n_points = np.hstack(y_true).shape[0]
-    preds_df_val = pd.DataFrame({tgt: np.hstack(preds_holdout)[0, :], f"gt_{tgt}": np.hstack(y_true)[0, :]})
+    preds_df_val = pd.DataFrame({tgt: np.hstack(preds_holdout)[0, :], f"gt_{tgt}": np.hstack(y_true)[0, :] ,'EPAssetsId':np.hstack(id_list)[0,:]})
     logger.warning(f"Final scores on holdout: {np.mean(scores)} +- {np.std(scores)}")
     logger.warning(f"Final scores on full holdout: {mean_absolute_error(preds_df_val[f'gt_{tgt}'], preds_df_val[tgt])}")
 

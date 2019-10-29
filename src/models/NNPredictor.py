@@ -4,7 +4,7 @@ from keras.layers import Input, Dense, Concatenate, Reshape, Dropout
 from keras.layers.embeddings import Embedding
 from keras.models import Model
 from keras.optimizers import SGD
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler,FunctionTransformer
 import logging
 import numpy as np
 
@@ -148,7 +148,7 @@ class NNPredictorNumerical:
     def __init__(self, numerical_features, data, **kwargs):
         self.numerical_features = numerical_features
         self.scaler = StandardScaler()
-        self.target_scaler = MinMaxScaler()
+        self.target_scaler = FunctionTransformer(func=np.log1p,inverse_func=np.expm1())
 
         self.model = None
         self.data = data

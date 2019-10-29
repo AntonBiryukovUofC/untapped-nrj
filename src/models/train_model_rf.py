@@ -129,7 +129,7 @@ class LogRF(RandomForestRegressor):
 
 condition_dict = {'Oil_norm':[0,1e5],'Gas_norm':[0.02,1e5],'Water_norm':[0.01,1e5]}
 
-def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=None, n_splits=5):
+def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=None, n_splits=11):
 
 
     condition = condition_dict[tgt]
@@ -153,12 +153,14 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=No
 
     df_test = df_test.drop(exclude_cols, axis=1)
 
-    cv = KFold(n_splits=n_splits, shuffle=True)
+    cv = KFold(n_splits=n_splits, shuffle=False)
     models = []
     scores = []
     scores_dm = []
 
     y = df_all.loc[~df_all[tgt].isna(), tgt]
+    id_X =df_all.loc[~df_all[tgt].isna(),["EPAssetsId"]]
+
     X = df_all.loc[~df_all[tgt].isna(), :].drop(
         ["Oil_norm", "Gas_norm", "Water_norm", "EPAssetsId", "_Normalized`IP`BOE/d"],
         axis=1,
@@ -173,6 +175,7 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=No
     preds_test = np.zeros((n_splits, df_test.shape[0]))
     preds_holdout = []
     y_true = []
+    id_list=[]
 
     np.random.seed(123)
 
@@ -181,6 +184,7 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=No
     for k, (train_index, test_index) in enumerate(cv.split(X, y)):
         X_train, X_holdout = X.iloc[train_index, :], X.iloc[test_index, :]
         print(X_train.shape)
+        id_X_holdout = id_X.iloc[test_index]
 
 
         # model = LGBMRegressor(num_leaves=16, learning_rate=0.1, n_estimators=300, reg_lambda=30, reg_alpha=30,
@@ -191,8 +195,8 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=No
             params = best_params.iloc[0, :].to_dict()
 
         model = LogRF(target=tgt,
-        max_depth=25,
-        n_estimators=300
+        max_depth=17,
+        n_estimators=200
         )
         y_train, y_holdout = y.iloc[train_index], y.iloc[test_index]
         idx = (y_train > condition[0]) & (y_train < condition[1])
@@ -227,6 +231,8 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=No
         preds_test[k, :] = model.predict(X_test)
         preds_holdout.append(y_pred_holdout.reshape(1, -1))
         y_true.append(y_holdout.values.reshape(1, -1))
+        id_list.append(id_X_holdout.values.reshape(1,-1))
+
         print(mean_absolute_error(y_holdout.values.reshape(1, -1), y_pred_holdout.reshape(1, -1)))
 
     with open(output_file_name, "wb") as f:
@@ -242,7 +248,8 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=No
         {"EPAssetsID": ids, "UWI": ids_uwi, tgt: mean_log(preds_test)}
     )
     n_points = np.hstack(y_true).shape[0]
-    preds_df_val = pd.DataFrame({tgt: np.hstack(preds_holdout)[0, :], f"gt_{tgt}": np.hstack(y_true)[0, :]})
+    preds_df_val = pd.DataFrame({tgt: np.hstack(preds_holdout)[0, :], f"gt_{tgt}": np.hstack(y_true)[0, :],
+                                 'EPAssetsId': np.hstack(id_list)[0, :]})
     logger.warning(f"Final scores on holdout: {np.mean(scores)} +- {np.std(scores)}")
     logger.warning(f"Final scores on full holdout: {mean_absolute_error(preds_df_val[f'gt_{tgt}'], preds_df_val[tgt])}")
 
@@ -276,7 +283,7 @@ if __name__ == "__main__":
     )
 
     df_oof = pd.concat([preds_val_oil, preds_val_gas, preds_val_water], axis=1)
-    df_oof.to_pickle(os.path.join(input_file_path, "OOF.pck"))
+    df_oof.to_pickle(os.path.join(input_file_path, "RF_OOF.pck"))
 
     logger.warning(
         f"Scores are: oil {score_holdout_oil}, gas {score_holdout_gas} water {score_holdout_water}"
@@ -286,6 +293,8 @@ if __name__ == "__main__":
     for x in df_merge_list:
         df = pd.merge(df, x.drop("UWI", axis=1), on="EPAssetsID")
     submission = df.sort_values("EPAssetsID")
+    submission.to_pickle(os.path.join(input_file_path, "submission_rf.pck"))
+
     submission.columns = [
         "EPAssetsId",
         "UWI",
@@ -293,5 +302,5 @@ if __name__ == "__main__":
         "_Normalized`IP`Gas`(Boe/d)",
         "_Normalized`IP`(Water`-`Bbls)",
     ]
-    submission.to_csv(os.path.join(input_file_path, "submission_lgbm.txt"), index=False)
+    submission.to_csv(os.path.join(input_file_path, "submission_rf.txt"), index=False)
 # EPAssetsID,UWI,Oil_norm,Gas_norm,Water_norm
