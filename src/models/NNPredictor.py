@@ -54,12 +54,16 @@ class NNPredictor:
         self.inputs.append(input_num)
         self.embeddings.append(dense_num)
 
-    def build_full_network(self, data: pd.DataFrame, optimizer=SGD(lr=0.001), n_layers=[32, 16]):
+    def build_full_network(
+        self, data: pd.DataFrame, optimizer=SGD(lr=0.001), n_layers=[32, 16]
+    ):
         # Create the categorical embeddings first:
         for c in self.categorical_features:
             cardinality = data[c].unique().shape[0]
             self._build_embedding_layer(
-                c, cat_cardinality=cardinality + 1, emb_dim=min(50, (cardinality + 1) // 2)
+                c,
+                cat_cardinality=cardinality + 1,
+                emb_dim=min(50, (cardinality + 1) // 2),
             )
         # Build numerical layer:
         self._build_numeric_layer(n_units=20)
@@ -159,11 +163,11 @@ class NNPredictorNumerical:
         # Create the categorical embeddings first:
         input_num = Input(shape=(len(self.numerical_features),))
 
-        dense_num = Dense(256,activation="relu")(input_num)
+        dense_num = Dense(256, activation="relu")(input_num)
         m = Dropout(rate=0.2)(dense_num)
-        dense_num = Dense(128,activation="relu")(m)
+        dense_num = Dense(128, activation="relu")(m)
         m = Dropout(rate=0.2)(dense_num)
-        dense_num = Dense(64,activation="relu")(m)
+        dense_num = Dense(64, activation="relu")(m)
         m = Dense(16, activation="relu")(dense_num)
         m = Dropout(rate=0.2)(m)
         m = Dense(8, activation="relu")(m)

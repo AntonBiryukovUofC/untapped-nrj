@@ -8,45 +8,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from category_encoders import OrdinalEncoder
+from sklearn.mixture import GaussianMixture
 from sklearn.preprocessing import LabelEncoder
 import category_encoders as ce
 
-
-class LabelEncoderExt(object):
-    def __init__(self):
-        """
-        It differs from LabelEncoder by handling new classes and providing a value for it [Unknown]
-        Unknown will be added in fit and transform will take care of new item. It gives unknown class id
-        """
-        self.label_encoder = LabelEncoder()
-        # self.classes_ = self.label_encoder.classes_
-
-    def fit(self, data_list):
-        """
-        This will fit the encoder for all the unique values and introduce unknown value
-        :param data_list: A list of string
-        :return: self
-        """
-        self.label_encoder = self.label_encoder.fit(list(data_list) + ["Unknown"])
-        self.classes_ = self.label_encoder.classes_
-
-        return self
-
-    def transform(self, data_list):
-        """
-        This will transform the data_list to id list where the new values get assigned to Unknown class
-        :param data_list:
-        :return:
-        """
-        new_data_list = list(data_list)
-        for unique_item in np.unique(data_list):
-            if unique_item not in self.label_encoder.classes_:
-                new_data_list = [
-                    "Unknown" if x == unique_item else x for x in new_data_list
-                ]
-
-        return self.label_encoder.transform(new_data_list)
-
+import pandas_profiling as pdp
 
 pd.set_option("display.width", 1800)
 pd.set_option("display.max_columns", 10)
@@ -65,10 +31,11 @@ COLS_TO_KEEP = (
     "_Max`Prod`(BOE),"
     "_Fracture`Stages,"
     "Confidential,SurfaceOwner,_Open`Hole,CompletionDate,Agent,ConfidentialReleaseDate,StatusDate,SurfAbandonDate,FinalDrillDate,"
-    "Licensee,LicenceNumber,StatusSource,CurrentOperatorParent,LicenceDate,Municipality,OSArea,OSDeposit,UnitName"
+    "Licensee,LicenceNumber,StatusSource,CurrentOperatorParent,LicenceDate,Municipality,OSArea,OSDeposit,UnitName,_Completion`Events"
 )
 CAT_COLUMNS = [
     "CurrentOperator",
+    "CurrentOperatorParent",
     "Licensee",
     "WellType",
     "Formation",
@@ -83,7 +50,7 @@ CAT_COLUMNS = [
     "SurfaceOwner",
     "Agent",
     "StatusSource",
-    "Municipality"
+    "Municipality",
 ]
 DATE_COLUMNS = [
     "ConfidentialReleaseDate",
@@ -93,7 +60,7 @@ DATE_COLUMNS = [
     "LicenceDate",
     "FinalDrillDate",
     "RigReleaseDate",
-]# DATE_COLUMNS = []
+]  # DATE_COLUMNS = []
 COUNT_COLUMNS = ["OSDeposit", "OSArea", "UnitName"]
 
 project_dir = Path(__file__).resolve().parents[2]
@@ -106,6 +73,7 @@ if not (all(in_cols)):
     logging.error(all_cols[in_cols.index(False)])
 
     raise ValueError("Check your categorical columns and cols to keep!")
+
 
 def read_table(input_file_path, logger, output_file_path, suffix):
     output_filepath_df = os.path.join(output_file_path, f"{suffix}_df.pck")
@@ -121,13 +89,13 @@ def read_table(input_file_path, logger, output_file_path, suffix):
 
     if suffix == "Test":
         inds = feature_df["EPAssetsId"].isin(test_wells)
-        feature_df = feature_df.loc[inds, cols]
+        df_full = feature_df.loc[inds, cols]
+        df_full["HZLength"] = df_full["TotalDepth"] - df_full["TVD"]
 
-        df_full = feature_df
+    # report = pdp.ProfileReport(df_full)
+    # report.to_file(os.path.join(output_file_path, f"{suffix}_profile.html"))
 
     if suffix in ["Train", "Validation"]:
-        feature_df = feature_df.loc[:, cols]
-
         target_df = pd.read_csv(
             os.path.join(input_file_path, f"Viking - {suffix}.txt")
         ).drop("UWI", axis=1)
@@ -140,12 +108,18 @@ def read_table(input_file_path, logger, output_file_path, suffix):
             inplace=True,
         )
         df_full = pd.merge(feature_df, target_df, on="EPAssetsId")
+
+        # report = pdp.ProfileReport(df_full)
+        # report.to_file(os.path.join(output_file_path, f"{suffix}_profile.html"))
+
+        df_full = df_full[cols + target_df.drop("EPAssetsId", axis=1).columns.tolist()]
+        df_full["HZLength"] = df_full["TotalDepth"] - df_full["TVD"]
+
         l = list(set(feature_df["EPAssetsId"]) & set(target_df["EPAssetsId"]))
         logger.info(f"intersection len: {len(l)}")
 
-    df_full["HZLength"] = df_full["TotalDepth"] - df_full["TVD"]
     # Clip to max of 35 days of drilling (?)
-    #df_full["DaysDrilling"] = np.clip(df_full["DaysDrilling"], a_min=None, a_max=35)
+    # df_full["DaysDrilling"] = np.clip(df_full["DaysDrilling"], a_min=None, a_max=35)
 
     logger.info(f"Shape feature = {df_full.shape} {suffix}")
     for c in DATE_COLUMNS:
@@ -184,11 +158,19 @@ def preprocess_table(input_file_path, output_file_path):
 
     CALC_COUNT_COLUMNS = []
     df_to_fit_le = pd.concat([df_full_train, df_full_val], axis=0)[df_full_test.columns]
+    # Assign clusters:
+    ncomp = 23
+    cl = GaussianMixture(n_components=ncomp).fit(
+        df_to_fit_le[["Surf_Longitude", "Surf_Latitude"]]
+    )
 
     # Label encode categoricals
     label_encoder = ce.OrdinalEncoder(return_df=True, cols=CAT_COLUMNS, verbose=1)
     count_encoder = ce.CountEncoder(
-        return_df=True, cols=COUNT_COLUMNS+CALC_COUNT_COLUMNS, verbose=1, handle_unknown=999
+        return_df=True,
+        cols=COUNT_COLUMNS + CALC_COUNT_COLUMNS,
+        verbose=1,
+        handle_unknown=999,
     )
 
     # Encode train and test with LE
@@ -210,9 +192,37 @@ def preprocess_table(input_file_path, output_file_path):
         df_full_val[df_full_test.columns]
     )
 
+    # # Assign cluster probs:
+    # cols_probs = [f'GM{i}' for i in range(ncomp)]
+    # df_full_train[cols_probs] = pd.DataFrame(data=cl.predict_proba(df_full_train[['Surf_Longitude', 'Surf_Latitude']]),
+    #                                          columns=cols_probs, index=df_full_train.index)
+    # df_full_test[cols_probs] = pd.DataFrame(data=cl.predict_proba(df_full_test[['Surf_Longitude', 'Surf_Latitude']]),
+    #                                         columns=cols_probs, index=df_full_test.index)
+    # df_full_val[cols_probs] = pd.DataFrame(data=cl.predict_proba(df_full_val[['Surf_Longitude', 'Surf_Latitude']]),
+    #                                        columns=cols_probs, index=df_full_val.index)
 
+    df_full_train["cluster"] = cl.predict(
+        df_full_train[["Surf_Longitude", "Surf_Latitude"]]
+    )
+    df_full_test["cluster"] = cl.predict(
+        df_full_test[["Surf_Longitude", "Surf_Latitude"]]
+    )
+    df_full_val["cluster"] = cl.predict(
+        df_full_val[["Surf_Longitude", "Surf_Latitude"]]
+    )
+    # Clip values:
 
+    for c in ["GroundElevation", "TotalDepth", "ProjectedDepth", "_Max`Prod`(BOE)"]:
+        l, u = (
+            np.nanquantile(df_full_train[c], 0.01),
+            np.nanquantile(df_full_train[c], 0.98),
+        )
 
+        df_full_train[c] = np.clip(df_full_train[c], l, u)
+        df_full_test[c] = np.clip(df_full_test[c], l, u)
+        df_full_val[c] = np.clip(df_full_val[c], l, u)
+
+        logging.info(f"Clipped {c} at {l} -- {u}")
 
     #
     print(df_full_train.shape)

@@ -9,7 +9,7 @@ from scipy.stats.mstats import gmean
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
-from src.data.make_dataset import DATE_COLUMNS, CAT_COLUMNS,COUNT_COLUMNS
+from src.data.make_dataset import DATE_COLUMNS, CAT_COLUMNS, COUNT_COLUMNS
 from lightgbm import LGBMRegressor, LGBMModel
 from sklearn.model_selection import KFold
 from sklearn.dummy import DummyRegressor
@@ -19,11 +19,12 @@ project_dir = Path(__file__).resolve().parents[2]
 
 
 # exclude_cols = ['FinalDrillDate', 'RigReleaseDate', 'SpudDate','UWI']
-exclude_cols = ["FinalDrillDate", "RigReleaseDate", "SpudDate", "UWI","CompletionDate"]
-#exclude_cols = ["UWI","CompletionDate"]
+exclude_cols = ["FinalDrillDate", "RigReleaseDate", "SpudDate", "UWI", "CompletionDate"]
+# exclude_cols = ["UWI","CompletionDate"]
 log_fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 logging.basicConfig(level=logging.INFO, format=log_fmt)
 logger = logging.getLogger(__name__)
+
 
 class LogLGBM(LGBMRegressor):
     def fit(self, X, Y, **kwargs):
@@ -60,7 +61,7 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", n_splits=5):
     models = []
     scores = []
     scores_dm = []
-    idx_condition = (~df[tgt].isna())
+    idx_condition = ~df[tgt].isna()
     y = df.loc[idx_condition, tgt]
     X = df.loc[idx_condition, :].drop(
         ["Oil_norm", "Gas_norm", "Water_norm", "EPAssetsId", "_Normalized`IP`BOE/d"],
@@ -84,29 +85,31 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", n_splits=5):
     id_val = df_val.loc[~df_val[tgt].isna(), "EPAssetsId"]
     preds_test = np.zeros((n_splits, df_test.shape[0]))
     preds_holdout = np.zeros((n_splits, X_holdout.shape[0]))
-    best_params = pd.read_csv(os.path.join(output_file_path,f'LGBM_{tgt}_feats_final_Trials.csv')).head(10)
+    best_params = pd.read_csv(
+        os.path.join(output_file_path, f"LGBM_{tgt}_feats_final_Trials.csv")
+    ).head(10)
     for k, (train_index, test_index) in enumerate(cv.split(X, y)):
         X_train, X_val = X.iloc[train_index, :], X.iloc[test_index, :]
 
         # model = LGBMRegressor(num_leaves=16, learning_rate=0.1, n_estimators=300, reg_lambda=30, reg_alpha=30,
         # objective='mae',random_state=123)
-        params = best_params.iloc[k,:].to_dict()
+        params = best_params.iloc[k, :].to_dict()
         model = LogLGBM(
             learning_rate=0.05,
             n_estimators=3500,
             objective="mse",
-            num_leaves=np.int(params['num_leaves']),
-            feature_fraction = params['feature_fraction'],
-            min_data_in_leaf = np.int(params['min_data_in_leaf']),
-            bagging_fraction = params['bagging_fraction'],
-            lambda_l1 = params['lambda_l1'],
-            lambda_l2=params['lambda_l2']
+            num_leaves=np.int(params["num_leaves"]),
+            feature_fraction=params["feature_fraction"],
+            min_data_in_leaf=np.int(params["min_data_in_leaf"]),
+            bagging_fraction=params["bagging_fraction"],
+            lambda_l1=params["lambda_l1"],
+            lambda_l2=params["lambda_l2"],
         )
         y_train, y_val = y.iloc[train_index], y.iloc[test_index]
         geom_mean = gmean(y_train)
         dm = DummyRegressor(strategy="constant", constant=geom_mean)
 
-        model.fit(X_train, y_train,categorical_feature=CAT_COLUMNS)
+        model.fit(X_train, y_train, categorical_feature=CAT_COLUMNS)
         # model.fit(X_train, y_train)
         dm.fit(X_train, y_train)
 
@@ -118,7 +121,7 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", n_splits=5):
         scores.append(score)
         scores_dm.append((score_dm))
         logger.warning(f"Holdout score = {score}")
-        #preds_test[k, :] = model.predict(X_test).reshape(1, -1)
+        # preds_test[k, :] = model.predict(X_test).reshape(1, -1)
         preds_holdout[k, :] = model.predict(X_holdout).reshape(1, -1)
 
     with open(output_file_name, "wb") as f:
@@ -130,12 +133,14 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", n_splits=5):
     preds_df = pd.DataFrame(
         {"EPAssetsID": ids, "UWI": ids_uwi, tgt: preds_test.mean(axis=0)}
     )
-    preds_df_val = pd.DataFrame({tgt: preds_holdout.mean(axis=0), "gt": y_holdout,'EPAssetsId':id_val})
+    preds_df_val = pd.DataFrame(
+        {tgt: preds_holdout.mean(axis=0), "gt": y_holdout, "EPAssetsId": id_val}
+    )
     score_holdout = mean_absolute_error(preds_df_val["gt"], preds_df_val[tgt])
     logger.warning(f"Final score on holdout: {score_holdout}")
     print(eli5.format_as_dataframe(eli5.explain_weights(model)))
 
-    return preds_df, score_holdout,preds_df_val
+    return preds_df, score_holdout, preds_df_val
 
 
 if __name__ == "__main__":
@@ -148,13 +153,13 @@ if __name__ == "__main__":
     os.makedirs(input_file_path, exist_ok=True)
     os.makedirs(output_file_path, exist_ok=True)
 
-    preds_oil, score_holdout_oil,preds_oil_val = main(
+    preds_oil, score_holdout_oil, preds_oil_val = main(
         input_file_path, output_file_path, tgt="Oil_norm"
     )
-    preds_gas, score_holdout_gas,preds_gas_val = main(
+    preds_gas, score_holdout_gas, preds_gas_val = main(
         input_file_path, output_file_path, tgt="Gas_norm"
     )
-    preds_water, score_holdout_water,preds_water_val = main(
+    preds_water, score_holdout_water, preds_water_val = main(
         input_file_path, output_file_path, tgt="Water_norm"
     )
     logger.warning(
@@ -174,7 +179,13 @@ if __name__ == "__main__":
     ]
     submission.to_csv(os.path.join(input_file_path, "submission_lgbm.txt"), index=False)
 
-    preds_oil_val.to_pickle(os.path.join(input_file_path,'preds_Oil_norm_validation.pck'))
-    preds_gas_val.to_pickle(os.path.join(input_file_path,'preds_Gas_norm_validation.pck'))
-    preds_water_val.to_pickle(os.path.join(input_file_path, 'preds_Water_norm_validation.pck'))
+    preds_oil_val.to_pickle(
+        os.path.join(input_file_path, "preds_Oil_norm_validation.pck")
+    )
+    preds_gas_val.to_pickle(
+        os.path.join(input_file_path, "preds_Gas_norm_validation.pck")
+    )
+    preds_water_val.to_pickle(
+        os.path.join(input_file_path, "preds_Water_norm_validation.pck")
+    )
 # EPAssetsID,UWI,Oil_norm,Gas_norm,Water_norm
