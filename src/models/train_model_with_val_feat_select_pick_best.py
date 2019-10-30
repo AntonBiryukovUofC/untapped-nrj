@@ -18,68 +18,81 @@ from sklearn.metrics import mean_absolute_error
 project_dir = Path(__file__).resolve().parents[2]
 
 
+exclude_cols_oil = [
+    "UWI",
+    "CompletionDate",
+    "DaysDrilling",
+    "DrillMetresPerDay",
+    "GroundElevation",
+    "HZLength",
+    "LengthDrill",
+    "Municipality",
+    "Pool",
+    "SurfaceOwner",
+    "_Fracture`Stages",
+    "final_timediff",
+    "lic_timediff",
+    "rrd_timediff",
+    "st_timediff",
+]
 
-exclude_cols_oil = ["UWI", "CompletionDate", 'DaysDrilling',
-                    'DrillMetresPerDay',
-                    'GroundElevation',
-                    'HZLength',
-                    'LengthDrill',
-                    'Municipality',
-                    'Pool',
-                    'SurfaceOwner',
-                    '_Fracture`Stages',
-                    'final_timediff',
-                    'lic_timediff',
-                    'rrd_timediff',
-                    'st_timediff']
+exclude_cols_gas = [
+    "ConfidentialReleaseDate",
+    "UWI",
+    "CompletionDate",
+    "CurrentOperator",
+    "DaysDrilling",
+    "DrillMetresPerDay",
+    "DrillingContractor",
+    "FinalDrillDate",
+    "KBElevation",
+    "LengthDrill",
+    "LicenceDate",
+    "Municipality",
+    "Pool",
+    "ProjectedDepth",
+    "RigReleaseDate",
+    "SpudDate",
+    "StatusSource",
+    "SurfaceOwner",
+    "TVD",
+    "TotalDepth",
+    "UnitName",
+    "_Fracture`Stages",
+    "cf_timediff",
+    "final_timediff",
+    "rrd_timediff",
+    "st_timediff",
+]
+exclude_cols_water = [
+    "ConfidentialReleaseDate",
+    "UWI",
+    "CompletionDate",
+    "DaysDrilling",
+    "DrillMetresPerDay",
+    "FinalDrillDate",
+    "GroundElevation",
+    "HZLength",
+    "KBElevation",
+    "LaheeClass",
+    "LicenceDate",
+    "Licensee",
+    "ProjectedDepth",
+    "SpudDate",
+    "TotalDepth",
+    "_Fracture`Stages",
+    "cf_timediff",
+    "final_timediff",
+    "lic_timediff",
+    "rrd_timediff",
+    "st_timediff",
+]
 
-exclude_cols_gas = ['ConfidentialReleaseDate', "UWI", "CompletionDate",
-                    'CurrentOperator',
-                    'DaysDrilling',
-                    'DrillMetresPerDay',
-                    'DrillingContractor',
-                    'FinalDrillDate',
-                    'KBElevation',
-                    'LengthDrill',
-                    'LicenceDate',
-                    'Municipality',
-                    'Pool',
-                    'ProjectedDepth',
-                    'RigReleaseDate',
-                    'SpudDate',
-                    'StatusSource',
-                    'SurfaceOwner',
-                    'TVD',
-                    'TotalDepth',
-                    'UnitName',
-                    '_Fracture`Stages',
-                    'cf_timediff',
-                    'final_timediff',
-                    'rrd_timediff',
-                    'st_timediff']
-exclude_cols_water = ['ConfidentialReleaseDate',"UWI", "CompletionDate",
-                      'DaysDrilling',
-                      'DrillMetresPerDay',
-                      'FinalDrillDate',
-                      'GroundElevation',
-                      'HZLength',
-                      'KBElevation',
-                      'LaheeClass',
-                      'LicenceDate',
-                      'Licensee',
-                      'ProjectedDepth',
-                      'SpudDate',
-                      'TotalDepth',
-                      '_Fracture`Stages',
-                      'cf_timediff',
-                      'final_timediff',
-                      'lic_timediff',
-                      'rrd_timediff',
-                      'st_timediff']
-
-exclude_cols_dict = {'Oil_norm': exclude_cols_oil,
-                     'Gas_norm': exclude_cols_gas,
-                     'Water_norm': exclude_cols_water}
+exclude_cols_dict = {
+    "Oil_norm": exclude_cols_oil,
+    "Gas_norm": exclude_cols_gas,
+    "Water_norm": exclude_cols_water,
+}
 
 log_fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 logging.basicConfig(level=logging.INFO, format=log_fmt)
@@ -99,7 +112,13 @@ class LogLGBM(LGBMRegressor):
         return preds
 
 
-def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=None, n_splits=11):
+def main(
+    input_file_path,
+    output_file_path,
+    tgt="Oil_norm",
+    interim_file_path=None,
+    n_splits=7,
+):
     input_file_name = os.path.join(input_file_path, "Train_final.pck")
     input_file_name_test = os.path.join(input_file_path, "Test_final.pck")
     input_file_name_val = os.path.join(input_file_path, "Validation_final.pck")
@@ -140,7 +159,9 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=No
 
     np.random.seed(123)
 
-    best_params = pd.read_csv(os.path.join(output_file_path, f'LGBM_{tgt}_feats_final_Trials.csv')).head(20)
+    best_params = pd.read_csv(
+        os.path.join(output_file_path, f"LGBM_{tgt}_feats_final_Trials.csv")
+    ).head(20)
     datasets = {}
     for k, (train_index, test_index) in enumerate(cv.split(X, y)):
         X_train, X_holdout = X.iloc[train_index, :], X.iloc[test_index, :]
@@ -154,23 +175,26 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=No
             learning_rate=0.05,
             n_estimators=3500,
             objective="mse",
-            num_leaves=np.int(params['num_leaves']),
-            feature_fraction=params['feature_fraction'],
-            min_data_in_leaf=np.int(params['min_data_in_leaf']),
-            bagging_fraction=params['bagging_fraction'],
-            lambda_l1=params['lambda_l1'],
-            lambda_l2=params['lambda_l2'],
-            random_state=k
+            num_leaves=np.int(params["num_leaves"]),
+            feature_fraction=params["feature_fraction"],
+            min_data_in_leaf=np.int(params["min_data_in_leaf"]),
+            bagging_fraction=params["bagging_fraction"],
+            lambda_l1=params["lambda_l1"],
+            lambda_l2=params["lambda_l2"],
+            random_state=k,
         )
         y_train, y_holdout = y.iloc[train_index], y.iloc[test_index]
         geom_mean = gmean(y_train)
         dm = DummyRegressor(strategy="constant", constant=geom_mean)
 
-        model.fit(X_train, y_train, categorical_feature=set(CAT_COLUMNS) - set(exclude_cols),
-                  eval_set=(X_holdout, y_holdout),
-                  early_stopping_rounds=150,
-                  verbose=200
-                  )
+        model.fit(
+            X_train,
+            y_train,
+            categorical_feature=set(CAT_COLUMNS) - set(exclude_cols),
+            eval_set=(X_holdout, y_holdout),
+            early_stopping_rounds=150,
+            verbose=200,
+        )
         # model.fit(X_train, y_train)
         dm.fit(X_train, y_train)
 
@@ -186,9 +210,12 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=No
         preds_test[k, :] = model.predict(X_test)
         preds_holdout.append(model.predict(X_holdout).reshape(1, -1))
         y_true.append(y_holdout.values.reshape(1, -1))
-        id_list.append(id_X_holdout.values.reshape(1,-1))
 
-        print(mean_absolute_error(y_holdout.values.reshape(1, -1), model.predict(X_holdout).reshape(1, -1)))
+        print(
+            mean_absolute_error(
+                y_holdout.values.reshape(1, -1), model.predict(X_holdout).reshape(1, -1)
+            )
+        )
 
     with open(output_file_name, "wb") as f:
         pickle.dump(models, f)
@@ -200,9 +227,14 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=No
         {"EPAssetsID": ids, "UWI": ids_uwi, tgt: preds_test.mean(axis=0)}
     )
     n_points = np.hstack(y_true).shape[0]
-    preds_df_val = pd.DataFrame({tgt: np.hstack(preds_holdout)[0, :], f"gt_{tgt}": np.hstack(y_true)[0, :] ,'EPAssetsId':np.hstack(id_list)[0,:]})
+
+    preds_df_val = pd.DataFrame(
+        {tgt: np.hstack(preds_holdout)[0, :], f"gt_{tgt}": np.hstack(y_true)[0, :]}
+    )
     logger.warning(f"Final scores on holdout: {np.mean(scores)} +- {np.std(scores)}")
-    logger.warning(f"Final scores on full holdout: {mean_absolute_error(preds_df_val[f'gt_{tgt}'], preds_df_val[tgt])}")
+    logger.warning(
+        f"Final scores on full holdout: {mean_absolute_error(preds_df_val[f'gt_{tgt}'], preds_df_val[tgt])}"
+    )
 
     print(eli5.format_as_dataframe(eli5.explain_weights(model, top=60)))
 

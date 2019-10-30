@@ -28,7 +28,9 @@ exclude_cols = [
     "OSArea",
     "OSDeposit",
     "SurveySystem",
-    "Formation","Field","Pool"
+    "Formation",
+    "Field",
+    "Pool",
 ]
 cat_cols_new = CAT_COLUMNS
 cat_cols_new = list(set(cat_cols_new) - (set(cat_cols_new) & set(exclude_cols)))
@@ -50,7 +52,7 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", n_splits=1):
     ids_uwi = df_test["UWI"]
 
     df_test = df_test.drop(exclude_cols, axis=1)
-    k=0
+    k = 0
     models = []
     scores = []
     scores_dm = []
@@ -78,15 +80,13 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", n_splits=1):
     preds_test = np.zeros((n_splits, df_test.shape[0]))
     preds_holdout = np.zeros((n_splits, X_holdout.shape[0]))
 
-
-
     # model = LGBMRegressor(num_leaves=16, learning_rate=0.1, n_estimators=300, reg_lambda=30, reg_alpha=30,
     # objective='mae',random_state=123)
     logging.info(f"Creating a NNPredictor with {cat_cols_new}")
     predictor_obj = NNPredictorNumerical(
         numerical_features=X_all.columns.difference(cat_cols_new),
         data=X_all,
-        optimizer = SGD(learning_rate=0.01)
+        optimizer=SGD(learning_rate=0.01),
     )
 
     y_train, y_val = y, y_holdout
@@ -96,7 +96,9 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", n_splits=1):
         X_all, X_holdout, X_test
     )
 
-    predictor_obj.fit(x=proc_X_train, y=y_train.values, batch_size=4, epochs=2,verbose=1)
+    predictor_obj.fit(
+        x=proc_X_train, y=y_train.values, batch_size=4, epochs=2, verbose=1
+    )
     # model.fit(X_train, y_train)
     dm.fit(X_all, y)
 

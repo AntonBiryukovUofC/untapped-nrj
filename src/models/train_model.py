@@ -24,6 +24,7 @@ log_fmt = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 logging.basicConfig(level=logging.INFO, format=log_fmt)
 logger = logging.getLogger(__name__)
 
+
 class LogLGBM(LGBMRegressor):
     def fit(self, X, Y, **kwargs):
         y_train = np.log(Y)
@@ -131,7 +132,7 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", n_splits=5):
     logger.warning(f"Final score on holdout: {score_holdout}")
     print(eli5.format_as_dataframe(eli5.explain_weights(model)))
 
-    return preds_df, score_holdout,preds_df_val
+    return preds_df, score_holdout, preds_df_val
 
 
 if __name__ == "__main__":
@@ -144,13 +145,13 @@ if __name__ == "__main__":
     os.makedirs(input_file_path, exist_ok=True)
     os.makedirs(output_file_path, exist_ok=True)
 
-    preds_oil, score_holdout_oil,preds_oil_val = main(
+    preds_oil, score_holdout_oil, preds_oil_val = main(
         input_file_path, output_file_path, tgt="Oil_norm"
     )
-    preds_gas, score_holdout_gas,preds_gas_val = main(
+    preds_gas, score_holdout_gas, preds_gas_val = main(
         input_file_path, output_file_path, tgt="Gas_norm"
     )
-    preds_water, score_holdout_water,preds_water_val = main(
+    preds_water, score_holdout_water, preds_water_val = main(
         input_file_path, output_file_path, tgt="Water_norm"
     )
     logger.warning(
@@ -170,7 +171,11 @@ if __name__ == "__main__":
     ]
     submission.to_csv(os.path.join(input_file_path, "submission_lgbm.txt"), index=False)
 
-    preds_oil_val.to_pickle(os.path.join(input_file_path,'preds_Oil_norm_validation.pck'))
-    preds_gas.to_pickle(os.path.join(input_file_path,'preds_Gas_norm_validation.pck'))
-    preds_water.to_pickle(os.path.join(input_file_path, 'preds_Water_norm_validation.pck'))
+    preds_oil_val.to_pickle(
+        os.path.join(input_file_path, "preds_Oil_norm_validation.pck")
+    )
+    preds_gas.to_pickle(os.path.join(input_file_path, "preds_Gas_norm_validation.pck"))
+    preds_water.to_pickle(
+        os.path.join(input_file_path, "preds_Water_norm_validation.pck")
+    )
 # EPAssetsID,UWI,Oil_norm,Gas_norm,Water_norm
