@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 from category_encoders import OrdinalEncoder
 from sklearn.mixture import GaussianMixture
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelEncoder, StandardScaler
 import category_encoders as ce
 
 import pandas_profiling as pdp
@@ -193,9 +193,16 @@ def preprocess_table(input_file_path, output_file_path):
         df_full_val[["Surf_Longitude", "Surf_Latitude"]]
     )
 
-    # Label encode categoricals
+    # Standard-scale numerical columns:
     df_to_fit_le = pd.concat([df_full_train, df_full_val], axis=0)[df_full_test.columns]
+    cols_numerical =df_to_fit_le.columns.difference(CAT_COLUMNS+COUNT_COLUMNS+['cluster','UWI','EPAssetsId'])
+    scaler = StandardScaler()
+    scaler.fit(df_to_fit_le[cols_numerical])
+    df_to_fit_le[cols_numerical] =
 
+
+
+    # Label encode categoricals
     ohe_encoder = ce.OneHotEncoder(
         return_df=True, cols=CAT_COLUMNS + COUNT_COLUMNS + ["cluster"], verbose=1
     )
@@ -239,6 +246,7 @@ def preprocess_table(input_file_path, output_file_path):
     misc["encoder_dict"] = encoders
     # profile = feature_df.profile_report(title=f'Pandas Profiling Report for {suffix}')
     # profile.to_file(output_file=os.path.join(project_dir, f"output_{suffix}.html"))
+
 
     df_full_train.to_pickle(output_filepath_df_train)
     df_full_test.to_pickle(output_filepath_df_test)

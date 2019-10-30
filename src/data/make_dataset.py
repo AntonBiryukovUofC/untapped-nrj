@@ -214,7 +214,7 @@ def preprocess_table(input_file_path, output_file_path):
 
     for c in ["GroundElevation", "TotalDepth", "ProjectedDepth", "_Max`Prod`(BOE)"]:
         l, u = (
-            np.nanquantile(df_full_train[c], 0.01),
+            np.nanquantile(df_full_train[c], 0.02),
             np.nanquantile(df_full_train[c], 0.98),
         )
 

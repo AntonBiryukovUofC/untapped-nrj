@@ -213,6 +213,7 @@ def main(
     datasets = {}
     for k, (train_index, test_index) in enumerate(cv.split(X, y)):
         X_train, X_holdout = X.iloc[train_index, :], X.iloc[test_index, :]
+
         id_X_holdout = id_X.iloc[test_index]
         print(X_train.shape)
 
@@ -237,15 +238,21 @@ def main(
             target=tgt,
         )
         y_train, y_holdout = y.iloc[train_index], y.iloc[test_index]
-        idx = (y_train > condition[0]) & (y_train < condition[1])
-        X_train, y_train = X_train.loc[idx,:],y_train.loc[idx]
         # Calculate a fill value:
         #target_log_mean = np.median(np.log(y_train[y_train > 0]))
         #target_fill_val = np.exp(target_log_mean)
         target_fill_val = 0
+        # Clip the target:
+        # l, u = (
+        #     np.nanquantile(y_train, 0.02),
+        #     np.nanquantile(y_train, 0.99),
+        # )
+        # y_train = np.clip(y_train,l,u)
         y_train = y_train.fillna(value=target_fill_val)
-        logging.info(f'Filling {tgt} with {target_fill_val}')
 
+
+
+        logging.info(f'Filling {tgt} with {target_fill_val}')
         y_holdout = y_holdout.fillna(value=0)
         geom_mean = gmean(y_train)
         dm = DummyRegressor(strategy="constant", constant=geom_mean)
