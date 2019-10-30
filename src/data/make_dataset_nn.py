@@ -31,7 +31,7 @@ COLS_TO_KEEP = (
     "_Max`Prod`(BOE),"
     "_Fracture`Stages,"
     "Confidential,SurfaceOwner,_Open`Hole,CompletionDate,Agent,ConfidentialReleaseDate,StatusDate,SurfAbandonDate,FinalDrillDate,"
-    "Licensee,LicenceNumber,StatusSource,CurrentOperatorParent,LicenceDate,Municipality,OSArea,OSDeposit,UnitName,_Completion`Events"
+    "Licensee,StatusSource,CurrentOperatorParent,LicenceDate,Municipality,OSArea,OSDeposit,UnitName,_Completion`Events"
 )
 CAT_COLUMNS = [
     "CurrentOperator",
@@ -127,6 +127,7 @@ def read_table(input_file_path, logger, output_file_path, suffix):
     for c in DATE_COLUMNS:
         logger.info(f"to DT: {c}")
         df_full[c] = pd.to_datetime(df_full[c])
+        df_full[c] = (df_full[c] - pd.to_datetime("1970-01-01")).dt.total_seconds() / 1000
 
     logger.info(f"Shape full = {df_full.shape} {suffix}")
     return df_full, output_filepath_df, output_filepath_misc
@@ -194,11 +195,13 @@ def preprocess_table(input_file_path, output_file_path):
     )
 
     # Standard-scale numerical columns:
+
+
     df_to_fit_le = pd.concat([df_full_train, df_full_val], axis=0)[df_full_test.columns]
     cols_numerical =df_to_fit_le.columns.difference(CAT_COLUMNS+COUNT_COLUMNS+['cluster','UWI','EPAssetsId'])
     scaler = StandardScaler()
     scaler.fit(df_to_fit_le[cols_numerical])
-    df_to_fit_le[cols_numerical] =
+    df_to_fit_le[cols_numerical] =scaler.transform(df_to_fit_le[cols_numerical])
 
 
 
