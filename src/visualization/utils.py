@@ -74,6 +74,28 @@ Presence of such outliers can *explode* the error term (as we do not want to pen
 thus we need to alleviate this problem and direct out model towards minimizing a relative error. Therefore, we can switch to `log(y)`,
 and directly minimize RMSLE. One of the downsides of RMSLE metric is that **it penalizes underestimation more than
  overestimation** - that's not something one would like to do when predicting well performance !
+
+
+In Python, the easiest way to switch to a different target is to create a new LGBM-like model class (via inheritance) and redefine `fit` and `predict` methods.
+That allows one to keep all the convenient functionality of underlying class, while reaping benefits of a custom target scaling (`log` in our case).
+
+```
+class LogLGBM(LGBMRegressor):
+    def __init__(self, target=None, **kwargs):
+        super().__init__(**kwargs)
+        self.target_scaler = FunctionTransformer(func=np.log1p, inverse_func=np.expm1)
+
+    def fit(self, X, Y, **kwargs):
+        self.target_scaler.fit(Y.values.reshape(-1, 1) + 1)
+        super(LogLGBM, self).fit(X, y_train, **kwargs)
+        return self
+
+    def predict(self, X):
+        preds = super(LogLGBM, self).predict(X).reshape(-1, 1)
+        preds = self.target_scaler.inverse_transform(preds) - 1
+        return preds
+```
+
 """
 
 model_blurb = """ We can demonstrate model results using residual plots and individual model prediction break-downs, and feature importances.
@@ -90,4 +112,8 @@ Among other strong features are obviously the location of the well (`lat`, `long
 
 Although for most of the features the trend is ambiguous and not interpretable, we can see a meaningful relationship for both `Max BOE` and `haversine_Length` - we do expect IP 
 to **positively correlate with maximum of production**, as well as **increase as wells become longer**, which is captured in the figure. 
+"""
+
+follow_up_blurb="""
+
 """
