@@ -4,11 +4,12 @@ import os
 import pickle
 import random
 from pathlib import Path
-
+import tqdm
 import numpy as np
 import pandas as pd
+import utm
 from category_encoders import OrdinalEncoder
-from sklearn.mixture import GaussianMixture
+from sklearn.neighbors.ball_tree import BallTree
 from sklearn.preprocessing import LabelEncoder
 import category_encoders as ce
 
@@ -31,7 +32,7 @@ COLS_TO_KEEP = (
     "_Max`Prod`(BOE),"
     "_Fracture`Stages,"
     "Confidential,SurfaceOwner,_Open`Hole,CompletionDate,Agent,ConfidentialReleaseDate,StatusDate,SurfAbandonDate,FinalDrillDate,"
-    "Licensee,LicenceNumber,StatusSource,CurrentOperatorParent,LicenceDate,Municipality,OSArea,OSDeposit,UnitName,_Completion`Events"
+    "Licensee,LicenceNumber,StatusSource,CurrentOperatorParent,LicenceDate,Municipality,OSArea,OSDeposit,UnitName"
 )
 CAT_COLUMNS = [
     "CurrentOperator",
@@ -50,7 +51,7 @@ CAT_COLUMNS = [
     "SurfaceOwner",
     "Agent",
     "StatusSource",
-    "Municipality",
+    "Municipality"
 ]
 DATE_COLUMNS = [
     "ConfidentialReleaseDate",
@@ -60,7 +61,7 @@ DATE_COLUMNS = [
     "LicenceDate",
     "FinalDrillDate",
     "RigReleaseDate",
-]  # DATE_COLUMNS = []
+]# DATE_COLUMNS = []
 COUNT_COLUMNS = ["OSDeposit", "OSArea", "UnitName"]
 
 project_dir = Path(__file__).resolve().parents[2]
@@ -73,6 +74,11 @@ if not (all(in_cols)):
     logging.error(all_cols[in_cols.index(False)])
 
     raise ValueError("Check your categorical columns and cols to keep!")
+
+
+def rule(row):
+    lat, long, _, _ = utm.from_latlon(row["Surf_Latitude"], row["Surf_Longitude"])
+    return pd.Series({"lat": lat, "long": long})
 
 
 def read_table(input_file_path, logger, output_file_path, suffix):
@@ -89,13 +95,13 @@ def read_table(input_file_path, logger, output_file_path, suffix):
 
     if suffix == "Test":
         inds = feature_df["EPAssetsId"].isin(test_wells)
-        df_full = feature_df.loc[inds, cols]
-        df_full["HZLength"] = df_full["TotalDepth"] - df_full["TVD"]
+        feature_df = feature_df.loc[inds, cols]
 
-    # report = pdp.ProfileReport(df_full)
-    # report.to_file(os.path.join(output_file_path, f"{suffix}_profile.html"))
+        df_full = feature_df
 
     if suffix in ["Train", "Validation"]:
+        feature_df = feature_df.loc[:, cols]
+
         target_df = pd.read_csv(
             os.path.join(input_file_path, f"Viking - {suffix}.txt")
         ).drop("UWI", axis=1)
@@ -108,26 +114,60 @@ def read_table(input_file_path, logger, output_file_path, suffix):
             inplace=True,
         )
         df_full = pd.merge(feature_df, target_df, on="EPAssetsId")
-
-        # report = pdp.ProfileReport(df_full)
-        # report.to_file(os.path.join(output_file_path, f"{suffix}_profile.html"))
-
-        df_full = df_full[cols + target_df.drop("EPAssetsId", axis=1).columns.tolist()]
-        df_full["HZLength"] = df_full["TotalDepth"] - df_full["TVD"]
-
         l = list(set(feature_df["EPAssetsId"]) & set(target_df["EPAssetsId"]))
         logger.info(f"intersection len: {len(l)}")
 
+    df_full["HZLength"] = df_full["TotalDepth"] - df_full["TVD"]
     # Clip to max of 35 days of drilling (?)
-    # df_full["DaysDrilling"] = np.clip(df_full["DaysDrilling"], a_min=None, a_max=35)
+    #df_full["DaysDrilling"] = np.clip(df_full["DaysDrilling"], a_min=None, a_max=35)
 
     logger.info(f"Shape feature = {df_full.shape} {suffix}")
     for c in DATE_COLUMNS:
         logger.info(f"to DT: {c}")
         df_full[c] = pd.to_datetime(df_full[c])
 
+    # Convert coordinates to UTM
+
+    df_full = df_full.merge(df_full.apply(rule, axis=1), left_index=True, right_index=True)
+    df_full['lat'] = df_full['lat'] - 2.9e5
+    df_full['long'] = df_full['long'] - 5.55e6
+
     logger.info(f"Shape full = {df_full.shape} {suffix}")
     return df_full, output_filepath_df, output_filepath_misc
+
+
+def calculate_agg_statistics(tree, X, df,radius=3000):
+    mean_boe=0
+    mean_water=0
+    mean_gas=0
+    mean_oil=0
+    std_boe=0
+    std_water=0
+    std_gas=0
+    std_oil=0
+    nwells=0
+    df_list=[]
+    for i  in tqdm.trange(df.shape[0]):
+        row=df.iloc[i,:]
+        inds = tree.query_radius(row[['lat','long']].values.reshape(1,-1),r=radius)[0]
+        data=X.iloc[inds,:]
+        mean_boe = np.nanmean(data['_Max`Prod`(BOE)'])
+        mean_water = np.nanmean(data['Water_norm'])
+        mean_gas = np.nanmean(data['Gas_norm'])
+        mean_oil = np.nanmean(data['Oil_norm'])
+        std_boe = np.nanstd(data['_Max`Prod`(BOE)'])
+        std_water = np.nanstd(data['Water_norm'])
+        std_gas = np.nanstd(data['Gas_norm'])
+        std_oil = np.nanstd(data['Oil_norm'])
+        nwells = data.shape[0]
+        tmp = pd.DataFrame({'mean_boe':mean_boe,'mean_water':mean_water,'mean_gas':mean_gas,'mean_oil':mean_oil,
+                            "std_boe":std_boe,"std_water":std_water,"std_gas":std_gas,'std_oil':std_oil,'n_wells':nwells},index=[i])
+        df_list.append(tmp)
+    result = pd.concat(df_list,axis=0)
+    result.index=df.index
+
+    result = pd.concat([result,df],axis=1)
+    return result
 
 
 def preprocess_table(input_file_path, output_file_path):
@@ -158,19 +198,11 @@ def preprocess_table(input_file_path, output_file_path):
 
     CALC_COUNT_COLUMNS = []
     df_to_fit_le = pd.concat([df_full_train, df_full_val], axis=0)[df_full_test.columns]
-    # Assign clusters:
-    ncomp = 23
-    cl = GaussianMixture(n_components=ncomp).fit(
-        df_to_fit_le[["Surf_Longitude", "Surf_Latitude"]]
-    )
 
     # Label encode categoricals
-    label_encoder = ce.OrdinalEncoder(return_df=True, cols=CAT_COLUMNS, verbose=1)
+    label_encoder = ce.CountEncoder(return_df=True, cols=CAT_COLUMNS, verbose=1, normalize=True)
     count_encoder = ce.CountEncoder(
-        return_df=True,
-        cols=COUNT_COLUMNS + CALC_COUNT_COLUMNS,
-        verbose=1,
-        handle_unknown=999,
+        return_df=True, cols=COUNT_COLUMNS + CALC_COUNT_COLUMNS, verbose=1, normalize=True
     )
 
     # Encode train and test with LE
@@ -191,38 +223,18 @@ def preprocess_table(input_file_path, output_file_path):
     df_full_val[df_full_test.columns] = count_encoder.transform(
         df_full_val[df_full_test.columns]
     )
+    # Encode aggregate statistics using BallTree:
+    X = pd.concat([df_full_train[['lat', 'long']], df_full_val[['lat', 'long']]], axis=0).values
+    # Build a tree:
+    tree = BallTree(X)
+    # Calculate aggregate statistics using tree:
+    X_to_get_data = pd.concat([df_full_train, df_full_val], axis=0)
+    #
+    # df_full_train = calculate_agg_statistics(tree,X_to_get_data,df_full_train)
+    # df_full_val = calculate_agg_statistics(tree, X_to_get_data, df_full_val)
+    # df_full_test = calculate_agg_statistics(tree, X_to_get_data, df_full_test)
 
-    # # Assign cluster probs:
-    # cols_probs = [f'GM{i}' for i in range(ncomp)]
-    # df_full_train[cols_probs] = pd.DataFrame(data=cl.predict_proba(df_full_train[['Surf_Longitude', 'Surf_Latitude']]),
-    #                                          columns=cols_probs, index=df_full_train.index)
-    # df_full_test[cols_probs] = pd.DataFrame(data=cl.predict_proba(df_full_test[['Surf_Longitude', 'Surf_Latitude']]),
-    #                                         columns=cols_probs, index=df_full_test.index)
-    # df_full_val[cols_probs] = pd.DataFrame(data=cl.predict_proba(df_full_val[['Surf_Longitude', 'Surf_Latitude']]),
-    #                                        columns=cols_probs, index=df_full_val.index)
 
-    df_full_train["cluster"] = cl.predict(
-        df_full_train[["Surf_Longitude", "Surf_Latitude"]]
-    )
-    df_full_test["cluster"] = cl.predict(
-        df_full_test[["Surf_Longitude", "Surf_Latitude"]]
-    )
-    df_full_val["cluster"] = cl.predict(
-        df_full_val[["Surf_Longitude", "Surf_Latitude"]]
-    )
-    # Clip values:
-
-    for c in ["GroundElevation", "TotalDepth", "ProjectedDepth", "_Max`Prod`(BOE)"]:
-        l, u = (
-            np.nanquantile(df_full_train[c], 0.02),
-            np.nanquantile(df_full_train[c], 0.98),
-        )
-
-        df_full_train[c] = np.clip(df_full_train[c], l, u)
-        df_full_test[c] = np.clip(df_full_test[c], l, u)
-        df_full_val[c] = np.clip(df_full_val[c], l, u)
-
-        logging.info(f"Clipped {c} at {l} -- {u}")
 
     #
     print(df_full_train.shape)

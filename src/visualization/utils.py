@@ -1,0 +1,93 @@
+modelling_approach = """
+In this exercise we are tasked with predicting an Initial Production (IP) of an unconventional wells drilled in Western Canadian
+Sedimentary Basin (WCSB) over several decades. Since an unconventional well rarely produces a single phase liquid, 
+we are provided with IP values for Oil, Gas and Water. As a result the problem becomes that of multi-output regression:
+that is, given a set of columns (features), predict **not one, but several targets (Oil, Gas and Water IPs)**.
+
+The modelling approach can be conceptualized as the following iterative process:
+
+1. Analyze the input features, and determine variables that should provide higher/lower predictive power
+2. Analyze the target values, and determine whether any transform is necessary (e.g. check the scoring metric, underlying target distribution) 
+3. Use creativity and domain knowledge to come up with new features - a non-linear function of those already in a dataset
+4. Break down dataset into training and validation, which will be used for model training and model selection/benchmarking, respectively.
+5. Create a Pipeline of feature generation with model training to make sure feature generation process uses training data ONLY
+6. Train a model, analyze residuals, feature importance, compare with your expectations in 1, and rinse-repeat the process using new knowledge. 
+
+An important note - for the model to be useful in practice, it should be trained in a reality-reflecting scenario. That is,
+if the data has a temporary character (i.e. Spud Date of the real test data is only increasing, or any other trends in features related to time),
+the cross-validation technique employed should reflect that. Depending on the application of this model, the random train-test split used by organizers
+might be an erroneous approach to estimate a model's predictive power, as the new data will not be coming randomly.
+
+Indeed, wells are not drilled in a random pattern occuring randomly in time and space - E&P companies tend to over-develop good reservoir, and under-develop 
+areas of poor production. Moreover, the underlying features might also change over time (think about HZ Length, Proppant used, various technologies of completion),
+and models may not necessarily be good at extrapolating when trained on one vintage of wells and applied on the other. It is this performance that we are often interested in:
+how good/bad is a model at predicting performance in the future, and how to make it depend on the features that contribute most towards metric score in that scenario.
+
+Progress tracking and code version control was done via GitHub - that allows for reproducibility via marking commits with good score and reverting when/if necessary.
+"""
+
+feature_engineering = """
+Feature engineering step was mainly driven by the exploratory data analysis performed earlier:
+
+ - All the categorical columns were encoded with Frequency encoder which assigns a number equal to the frequency of the category value in that column.
+This helps a model in case of categorical feature with a high proportion of unique values. 
+- Completions and geology both play an important role, and both were missing in the underlying dataset. Therefore we had to come up with proxies.
+- Latitude and longitude were used to calculate a HZ length of a well, as well as its azimuth - the longer the well, the higher its production generally.
+- Well length was also calculated using drilling days and metres drilled per day information
+- Proppant intensities historically have generally been increasing - therefore we kept `SpudDate` as a proxy for proppant and other technologies that vary with time
+- Some of the continuous columns (`DrillingDays`,`GroundElevation`) had large outlier values - a potential error while data gathering, which were clipped to a chosen quantile (5%-95%) range.
+"""
+
+modelconf_blurb = """
+As a go-to model we picked an implementation of Gradient Boosted Trees Machine - a LightGBM, which proved itself successfull in multiple competitions. The algorithm benefits from a highly -efficient
+C++ implementation, and is well parallelized, which makes it a great candidate for quick prototyping and experimentation.
+
+As per our cross-validation discussion above, we decided to sort our data in time, and train in KFold, non-shuffled manner.
+That way, we make sure that our train and test do not intersect in time, and hopefully the CV results are indicative of 
+future performance (or at least closer to it, as opposed to random subsetting)
+
+![gbm](https://littleml.files.wordpress.com/2017/03/boosted-trees-process.png?w=497 "Trees iteratively try to correct errors in prediction from a previous tree in the sequence")
+
+*Trees iteratively try to correct errors in prediction from a previous tree in the sequence*
+
+"""
+
+intro_blurb ="""
+The purpose of this little webapp is threefold:
+
+1. Introduce a reader to the modelling approach used in the Regression part of the Untapped challenge
+2. Discuss in brief feature engineering, a class of models, and a cross-validation strategy employed at modelling stage
+3. Analyze model performance (residuals, complexity of the inference process), and illustrate individual impact of 
+selected features on a model prediction.  
+"""
+
+target_transform_blurb = """
+It was demonstrated that in oil and gas industry, the distribution of well production values has long tails. 
+This phenomenon is not unique for well production - a distribution of rainfall and earthquake magnitudes have a similar property.
+If we train a model using raw target values trying to minimize RMSE, a large relative error on a smaller number will be given the same weight as small relative error on a large number.
+E.g. for a well with true IP of *1 bbld* a prediction of 10 bbld provides same error as for a well with true IP 1000 bbld and predicted IP 1010 bbld. Thus, our model may not be
+good at predicting low values where a bulk of the dataset sits at, and attempt at minimizing error at the right tail with high production values, that are rarely observed, and a hard to predict.
+
+
+
+Presence of such outliers can *explode* the error term (as we do not want to penalize large errors when both ground truth and a prediction are large numbers), 
+thus we need to alleviate this problem and direct out model towards minimizing a relative error. Therefore, we can switch to `log(y)`,
+and directly minimize RMSLE. One of the downsides of RMSLE metric is that **it penalizes underestimation more than
+ overestimation** - that's not something one would like to do when predicting well performance !
+"""
+
+model_blurb = """ We can demonstrate model results using residual plots and individual model prediction break-downs, and feature importances.
+
+Using SHAP method, we attempt at explaining at what feature values caused the model to make certain decisions - that is explanations in **local sense** (per data point).
+
+If we aggregate SHAP explanations over the dataset, we can get an idea of average feature importance - that is explanations in **global sense**.
+"""
+
+feat_imp_blurb = """Feature importance plot shows features in the order of decreasing importance. As mentioned earlier, `Max BOE` is a top feature due to the fact that it really *leaks* the target.
+That is, it is strongly correlated to the target values, however may not be available in the reality (we simply do not know `Max BOE` prior to drilling, same applies to IP). 
+Among other strong features are obviously the location of the well (`lat`, `long` **maps a rock quality, geological features**), its **vintage** (`SpudDate`) and horizontal **length** (`haversine_Length`).
+
+
+Although for most of the features the trend is ambiguous and not interpretable, we can see a meaningful relationship for both `Max BOE` and `haversine_Length` - we do expect IP 
+to **positively correlate with maximum of production**, as well as **increase as wells become longer**, which is captured in the figure. 
+"""
