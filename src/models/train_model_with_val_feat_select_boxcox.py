@@ -5,6 +5,8 @@ import random
 import eli5
 
 from pathlib import Path
+
+import shap
 from scipy.stats.mstats import gmean
 import numpy as np
 import pandas as pd
@@ -14,17 +16,13 @@ from lightgbm import LGBMRegressor, LGBMModel
 from sklearn.model_selection import KFold
 from sklearn.dummy import DummyRegressor
 from sklearn.metrics import mean_absolute_error
-from sklearn.preprocessing import PowerTransformer,FunctionTransformer
+from sklearn.preprocessing import PowerTransformer, FunctionTransformer
+
 project_dir = Path(__file__).resolve().parents[2]
 
 
-# def mean_log(preds):
-#     lpreds =np.log1p(preds)
-#     mean_preds = np.mean(lpreds,axis=0)
-#     final_preds = np.expm1(mean_preds)
-#     return final_preds
 def mean_log(preds):
-    final_preds = gmean(preds,axis=0)
+    final_preds = gmean(preds, axis=0)
     return final_preds
 
 
@@ -34,13 +32,17 @@ exclude_cols_oil = ["UWI", "CompletionDate", 'DaysDrilling',
                     'HZLength',
                     'LengthDrill',
                     'Municipality',
-                    'Pool',
+                    'StatusDate',
+                    # 'Pool',
                     'SurfaceOwner',
                     '_Fracture`Stages',
+                    'SpudDate_dt',
                     'final_timediff',
                     'lic_timediff',
                     'rrd_timediff',
-                    'st_timediff']
+                    'st_timediff', 'Confidential', 'SurfAbandonDate', "Surf_Longitude", 'Surf_Latitude','ConfidentialReleaseDate',
+                    'LicenceDate'
+                    ]
 
 exclude_cols_gas = ['ConfidentialReleaseDate', "UWI", "CompletionDate",
                     'CurrentOperator',
@@ -50,12 +52,15 @@ exclude_cols_gas = ['ConfidentialReleaseDate', "UWI", "CompletionDate",
                     'FinalDrillDate',
                     'KBElevation',
                     'LengthDrill',
+'LicenceDate',
+'SpudDate_dt',
+                    'StatusDate',
                     'LicenceDate',
                     'Municipality',
                     'Pool',
                     'ProjectedDepth',
                     'RigReleaseDate',
-                    'SpudDate',
+                    'Surf_Longitude',
                     'StatusSource',
                     'SurfaceOwner',
                     'TVD',
@@ -65,26 +70,27 @@ exclude_cols_gas = ['ConfidentialReleaseDate', "UWI", "CompletionDate",
                     'cf_timediff',
                     'final_timediff',
                     'rrd_timediff',
-                    'st_timediff']
-exclude_cols_water = ['ConfidentialReleaseDate',"UWI", "CompletionDate",
+                    'st_timediff', 'Confidential', 'SurfAbandonDate', 'Surf_Latitude']
+exclude_cols_water = ['ConfidentialReleaseDate', "UWI", "CompletionDate",
                       'DaysDrilling',
                       'DrillMetresPerDay',
                       'FinalDrillDate',
                       'GroundElevation',
                       'HZLength',
+'SpudDate_dt',
                       'KBElevation',
+                      'StatusDate',
                       'LaheeClass',
                       'LicenceDate',
                       'Licensee',
                       'ProjectedDepth',
-                      'SpudDate',
                       'TotalDepth',
                       '_Fracture`Stages',
                       'cf_timediff',
                       'final_timediff',
                       'lic_timediff',
                       'rrd_timediff',
-                      'st_timediff']
+                      'st_timediff', 'Confidential', 'SurfAbandonDate', 'Surf_Longitude', 'Surf_Latitude']
 
 exclude_cols_dict = {'Oil_norm': exclude_cols_oil,
                      'Gas_norm': exclude_cols_gas,
@@ -96,32 +102,32 @@ logger = logging.getLogger(__name__)
 
 threshold_dict = {}
 
+
 class LogLGBM(LGBMRegressor):
     def __init__(self, target=None, **kwargs):
         super().__init__(**kwargs)
         if target == "Oil_norm":
             self.target_scaler = PowerTransformer(method='box-cox', standardize=False)
         elif target == 'Gas_norm':
-            self.target_scaler = FunctionTransformer(func=np.log1p,inverse_func=np.expm1)
+            self.target_scaler = FunctionTransformer(func=np.log1p, inverse_func=np.expm1)
         elif target == 'Water_norm':
-            self.target_scaler = FunctionTransformer(func=np.log1p,inverse_func=np.expm1)
-
+            self.target_scaler = FunctionTransformer(func=np.log1p, inverse_func=np.expm1)
 
     def fit(self, X, Y, **kwargs):
-        #y_train = np.log1p(Y)
-        self.target_scaler.fit(Y.values.reshape(-1,1)+1)
-        y_train = pd.Series(self.target_scaler.transform(Y.values.reshape(-1,1)+1).reshape(-1,))
+        # y_train = np.log1p(Y)
+        self.target_scaler.fit(Y.values.reshape(-1, 1) + 1)
+        y_train = pd.Series(self.target_scaler.transform(Y.values.reshape(-1, 1) + 1).reshape(-1, ))
         super(LogLGBM, self).fit(X, y_train, **kwargs)
 
         return self
 
     def predict(self, X):
         preds = super(LogLGBM, self).predict(X).reshape(-1, 1)
-        preds = self.target_scaler.inverse_transform(preds)-1
-        return preds[:,0]
+        preds = self.target_scaler.inverse_transform(preds) - 1
+        return preds[:, 0]
 
 
-def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=None, n_splits=11):
+def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=None, n_splits=5):
     input_file_name = os.path.join(input_file_path, "Train_final.pck")
     input_file_name_test = os.path.join(input_file_path, "Test_final.pck")
     input_file_name_val = os.path.join(input_file_path, "Validation_final.pck")
@@ -131,7 +137,7 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=No
     df = pd.read_pickle(input_file_name).drop(exclude_cols, axis=1)
     df_test = pd.read_pickle(input_file_name_test)
     df_val = pd.read_pickle(input_file_name_val).drop(exclude_cols, axis=1)
-    df_all = pd.concat([df, df_val], axis=0)
+    df_all = pd.concat([df, df_val], axis=0).sort_values('SpudDate')
 
     df_all[tgt] = df_all[tgt].fillna(value=0)
 
@@ -213,6 +219,17 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", interim_file_path=No
         preds_holdout.append(y_pred_holdout.reshape(1, -1))
         y_true.append(y_holdout.values.reshape(1, -1))
         print(mean_absolute_error(y_holdout.values.reshape(1, -1), y_pred_holdout.reshape(1, -1)))
+
+        explainer = shap.TreeExplainer(model)
+        shap_values = explainer.shap_values(X_train)
+        shap_dict = {}
+        shap_dict['explainer'] = explainer
+        shap_dict['shap_values'] = shap_values
+        shap_dict['feature_names'] = X_train.columns.tolist()
+        shap_dict['X_train'] = X_train
+
+        with open(os.path.join(output_file_path, f'shap_{tgt}.pck'), 'wb') as f:
+            pickle.dump(shap_dict,f)
 
     with open(output_file_name, "wb") as f:
         pickle.dump(models, f)

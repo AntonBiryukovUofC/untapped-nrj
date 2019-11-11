@@ -54,7 +54,7 @@ def main(input_file_path, output_file_path, tgt="Oil_norm", n_splits=5):
 
     df_test = df_test.drop(exclude_cols, axis=1)
 
-    cv = KFold(n_splits=n_splits, shuffle=True)
+    cv = KFold(n_splits=n_splits, shuffle=False)
     models = []
     scores = []
     scores_dm = []

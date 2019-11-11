@@ -23,8 +23,68 @@ project_dir = Path(__file__).resolve().parents[2]
 log_fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 logging.basicConfig(level=logging.INFO, format=log_fmt)
 # exclude_cols = ['FinalDrillDate', 'RigReleaseDate', 'SpudDate','UWI']
-exclude_cols = ['FinalDrillDate', 'RigReleaseDate', 'SpudDate', 'UWI']
 
+exclude_cols_oil = ["UWI", "CompletionDate", 'DaysDrilling',
+                    'DrillMetresPerDay',
+                    'GroundElevation',
+                    'HZLength',
+                    'LengthDrill',
+                    'Municipality',
+                    #'Pool',
+                    'SurfaceOwner',
+                    '_Fracture`Stages',
+                    'final_timediff',
+                    'lic_timediff',
+                    'rrd_timediff',
+                    'st_timediff','Confidential','SurfAbandonDate']
+
+exclude_cols_gas = ['ConfidentialReleaseDate', "UWI", "CompletionDate",
+                    'CurrentOperator',
+                    'DaysDrilling',
+                    'DrillMetresPerDay',
+                    'DrillingContractor',
+                    'FinalDrillDate',
+                    'KBElevation',
+                    'LengthDrill',
+                    'LicenceDate',
+                    'Municipality',
+                    'Pool',
+                    'ProjectedDepth',
+                    'RigReleaseDate',
+                    'SpudDate',
+                    'StatusSource',
+                    'SurfaceOwner',
+                    'TVD',
+                    'TotalDepth',
+                    'UnitName',
+                    '_Fracture`Stages',
+                    'cf_timediff',
+                    'final_timediff',
+                    'rrd_timediff',
+                    'st_timediff','Confidential','SurfAbandonDate']
+exclude_cols_water = ['ConfidentialReleaseDate',"UWI", "CompletionDate",
+                      'DaysDrilling',
+                      'DrillMetresPerDay',
+                      'FinalDrillDate',
+                      'GroundElevation',
+                      'HZLength',
+                      'KBElevation',
+                      'LaheeClass',
+                      'LicenceDate',
+                      'Licensee',
+                      'ProjectedDepth',
+                      'SpudDate',
+                      'TotalDepth',
+                      '_Fracture`Stages',
+                      'cf_timediff',
+                      'final_timediff',
+                      'lic_timediff',
+                      'rrd_timediff',
+                      'st_timediff','Confidential','SurfAbandonDate']
+
+exclude_cols_dict = {'Oil_norm': exclude_cols_oil,
+                     'Gas_norm': exclude_cols_gas,
+                     'Water_norm': exclude_cols_water}
 
 class LogLGBM(LGBMRegressor):
 
@@ -51,7 +111,7 @@ def main(input_file_path, tgt='Oil_norm'):
     note = "LGBM"
     input_file_name = os.path.join(input_file_path, 'Train_final.pck')
     input_file_name_val = os.path.join(input_file_path, 'Validation_final.pck')
-
+    exclude_cols = exclude_cols_dict[tgt]
     df = pd.read_pickle(input_file_name).drop(exclude_cols, axis=1)
     df_val = pd.read_pickle(input_file_name_val).drop(exclude_cols, axis=1)
 

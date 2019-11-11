@@ -8,9 +8,13 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 from src.data.make_dataset import DATE_COLUMNS, CAT_COLUMNS
-
+import utm
 project_dir = Path(__file__).resolve().parents[2]
 
+
+def rule(row):
+    lat, long,_,_= utm.from_latlon(row["Surf_Latitude"], row["Surf_Longitude"], 45, 'K')
+    return pd.Series({"lat": lat, "long": long})
 
 def distance(s_lat, s_lng, e_lat, e_lng):
     # approximate radius of earth in km
@@ -37,7 +41,12 @@ def build_features(input_file_path, output_file_path, suffix="Train"):
     #     df[f'{col}_day'] = df[col].dt.day
     # df.loc[df["Surf_Longitude"] > -70, "Surf_Longitude"] = np.nan
 
+    df['RigReleaseDate_days_till_monthend'] = 31 - df['RigReleaseDate'].dt.day
+    df['FinalDrillDate_days_till_monthend'] = 31 - df['FinalDrillDate'].dt.day
 
+    #df['BOE_average'] = df['_Max`Prod`(BOE)'] / df['RigReleaseDate_days_till_monthend']
+    #df['BOE_fd_av'] = df['_Max`Prod`(BOE)'] / df['FinalDrillDate_days_till_monthend']
+    df['SpudDate_dt'] = df['SpudDate']
     for col in DATE_COLUMNS:
         df[col] = (df[col] - pd.to_datetime("1950-01-01")).dt.total_seconds()
     # All possible diff interactions of dates:
