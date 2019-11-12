@@ -121,6 +121,7 @@ ch_rm = ch_base.encode(
     y='rolling_mean', color=alt.value('black')).mark_point(filled=True)
 
 st.write(ch_map & (ch_time_component + ch_rm))
+st.write('** Try selecting / dragging a selection in the panel above (the chart is interactive!)')
 # _Max`Prod`(BOE)
 st.header('\N{sparkles} The evolution of maximum production over vintage ')
 st.write(
@@ -133,6 +134,7 @@ ch_boe = alt.Chart(df_latlong.sample(frac=0.3), width=400).encode(x=alt.X('yearm
 ch_tgt = alt.Chart(df_train.sample(frac=0.3), width=400).encode(x=alt.X('yearmonth(SpudDate_dt)', scale=alt.Scale(zero=False)),
                                                y=alt.Y(tgt_dict[tgt], scale=alt.Scale(type='log')),
                                                color='LengthDrill').mark_point(filled=True).interactive()
+st.write('*The chart above is zoom-able.')
 st.write(ch_boe | ch_tgt)
 st.write(
     'We also know that proppant intensity has a prominent effect on IP. However, we are missing this important parameter and therefore can only rely on `SpudDate` acting as a proxy for it.')
@@ -225,3 +227,4 @@ ch_cluster = alt.Chart(data=df_latlong.sample(frac=0.05), width=600, height=400)
 
 st.write(follow_up_blurb)
 st.altair_chart(ch_cluster,width=700)
+st.write('*Try zooming in and out in the chart above*')
