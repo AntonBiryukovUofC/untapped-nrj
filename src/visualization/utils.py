@@ -52,7 +52,7 @@ future performance (or at least closer to it, as opposed to random subsetting)
 
 """
 
-intro_blurb ="""
+intro_blurb = """
 The purpose of this little webapp is threefold:
 
 1. Introduce a reader to the modelling approach used in the Regression part of the Untapped challenge
@@ -105,15 +105,35 @@ Using SHAP method, we attempt at explaining at what feature values caused the mo
 If we aggregate SHAP explanations over the dataset, we can get an idea of average feature importance - that is explanations in **global sense**.
 """
 
-feat_imp_blurb = """Feature importance plot shows features in the order of decreasing importance. As mentioned earlier, `Max BOE` is a top feature due to the fact that it really *leaks* the target.
-That is, it is strongly correlated to the target values, however may not be available in the reality (we simply do not know `Max BOE` prior to drilling, same applies to IP). 
-Among other strong features are obviously the location of the well (`lat`, `long` **maps a rock quality, geological features**), its **vintage** (`SpudDate`) and horizontal **length** (`haversine_Length`).
+feat_imp_blurb = """Feature importance plot shows features in the order of decreasing importance. As mentioned earlier, 
+`Max BOE` is a top feature due to the fact that it really *leaks* the target.
+That is, it is strongly correlated to the target values, however may not be available in the reality (we simply do not
+ know `Max BOE` prior to drilling, same applies to IP). 
+Among other strong features are obviously the location of the well (`lat`, `long` **maps a rock quality, geological 
+features**), its **vintage** (`SpudDate`) and horizontal **length** (`haversine_Length`).
 
 
-Although for most of the features the trend is ambiguous and not interpretable, we can see a meaningful relationship for both `Max BOE` and `haversine_Length` - we do expect IP 
-to **positively correlate with maximum of production**, as well as **increase as wells become longer**, which is captured in the figure. 
+Although for most of the features the trend is ambiguous and not interpretable, we can see a meaningful relationship 
+for both `Max BOE` and `haversine_Length` - we do expect IP 
+to **positively correlate with maximum of production**, as well as **increase as wells become longer**, which is
+ captured in the figure. 
 """
 
-follow_up_blurb="""
+follow_up_blurb = """
+Since the **high-score models** currently heavily **rely on `Max BOE`**, we are afraid there is **not much practical use** to the models created.
+The problem is that `Max BOE` **is not available before the well is drilled**, as that is the time
+when a prediction of IP is desired. Thus using this feature in modelling is a technically a `target leak` and should be avoided if 
+future predictive power is sought after. 
 
+However, if `Max BOE` was to be eliminated, and some completions / geology data was added, then a similar modelling procedure 
+could be used in evaluating reserves and impact on production caused by various completions practices. From a risk point of view,
+one could apply this model in a step-off (=clustered) manner and identify geographic areas / zones where predictions are less reliable (example is given below). 
+Less reliable areas could be loosely defined as those characterized with high error in predictions. Those areas can then be marked as
+risky, and could be given a higher discount when economical analysis is performed.
+
+We could also quantitatively analyze effectiveness of completions practices and figure out which one leads to better IPs / EURs,
+and help completions engineers run the jobs in a more sustainable manner (i.e. use less proppant if the excessive 
+intensity is no longer justified by a forecasted increase in production)
 """
+
+

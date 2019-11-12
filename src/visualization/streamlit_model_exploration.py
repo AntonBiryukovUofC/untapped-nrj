@@ -6,6 +6,7 @@ import shap
 import streamlit as st
 import sys
 import matplotlib
+from sklearn.cluster import KMeans
 
 matplotlib.use('Agg')
 
@@ -57,9 +58,10 @@ def get_shap():
             shap[tgt] = pickle.load(f)
     return shap
 
-
-st.title('Model results exploration - regression')
-st.sidebar.title('Model explorer - Regression')
+st.image("https://bracewell.com/sites/default/files/styles/banner/public/practice-banners/Header_OilGasProjects_0.jpg")
+st.write('*Image - courtesy of Bracewell LLP*')
+st.title('\N{writing hand} Model results exploration - Untapped reClaim Challenge')
+st.sidebar.title('\U000026A1 Model explorer - regression & classification')
 st.sidebar.markdown(intro_blurb)
 
 df_train, df_val, df_test, oof_preds = get_data()
@@ -67,11 +69,11 @@ shaps = get_shap()
 
 # models = get_models()
 
-st.sidebar.header('Parameters of a model')
+st.sidebar.header('\N{gear} Parameters of a model')
 tgt = st.sidebar.selectbox('Target of prediction', options=list(tgt_dict.keys()), index=0)
 pdp_feature = st.sidebar.selectbox('Partial Dependence plot Feature', options=shaps[tgt_dict[tgt]]['feature_names'],
                                    index=len(shaps[tgt_dict[tgt]]['feature_names']) - 1)
-st.header('Modelling approach')
+st.header('\N{hammer and pick} Modelling approach')
 st.write(modelling_approach)
 st.header('Data split, visualized')
 st.write('Notice an evidently randomized split between the train/test/validation datasets. Notice a clearly '
@@ -87,7 +89,7 @@ df_latlong['rolling_mean'] = df_latlong.rolling(window=100)['LengthDrill'].media
 # Add selector:
 selector = alt.selection_interval(encodings=['x'], empty='all')
 
-ch_base = alt.Chart(df_latlong, width=300)
+ch_base = alt.Chart(df_latlong.sample(frac=0.1), width=300)
 
 ch_map = ch_base.encode(
     x=alt.Longitude(latlong_cols[0], scale=alt.Scale(domain=(vmin[0], vmax[0]))),
@@ -107,15 +109,15 @@ ch_rm = ch_base.encode(
 
 st.write(ch_map & (ch_time_component + ch_rm))
 # _Max`Prod`(BOE)
-st.header('The evolution of maximum production over vintage ')
+st.header('\N{sparkles} The evolution of maximum production over vintage ')
 st.write(
     f'The effect of *bigger fracs* over time is more evident if we plot Max BOE vs time - there is clearly a drift '
     f'towards higher values. Wells production distribution has long tails - '
     f'therefore logarithm of Max BOE is shown below. Compare that with a trend in target IP {tgt} we need to predict.')
-ch_boe = alt.Chart(df_latlong, width=400).encode(x=alt.X('yearmonth(SpudDate_dt)', scale=alt.Scale(zero=False)),
+ch_boe = alt.Chart(df_latlong.sample(frac=0.1), width=400).encode(x=alt.X('yearmonth(SpudDate_dt)', scale=alt.Scale(zero=False)),
                                                  y=alt.Y(latlong_cols[-2], scale=alt.Scale(type='log')),
                                                  color='LengthDrill').mark_point(filled=True).interactive()
-ch_tgt = alt.Chart(df_train, width=400).encode(x=alt.X('yearmonth(SpudDate_dt)', scale=alt.Scale(zero=False)),
+ch_tgt = alt.Chart(df_train.sample(frac=0.1), width=400).encode(x=alt.X('yearmonth(SpudDate_dt)', scale=alt.Scale(zero=False)),
                                                y=alt.Y(tgt_dict[tgt], scale=alt.Scale(type='log')),
                                                color='LengthDrill').mark_point(filled=True).interactive()
 st.write(ch_boe | ch_tgt)
@@ -125,22 +127,22 @@ st.image('proppant-vs-target.png', format='png')
 st.write(
     '*Gas production vs proppant intensity. An upward trend with signs of plateau is visible, regardless of target zone. Courtesy of Verdazo Analytics*')
 
-st.header('Feature Engineering')
+st.header('\N{pick} Feature Engineering')
 st.write(feature_engineering)
-st.header('Target transform')
+st.header('\N{curly loop} Target transform')
 st.write(target_transform_blurb)
 df_target = df_train.loc[:, [tgt_dict[tgt]] + ['EPAssetsId']]
 df_target = df_target[df_target[tgt_dict[tgt]] < 150]
 df_target[f'Log_{tgt}'] = np.log1p(df_train[tgt_dict[tgt]])
-ch_tgt = alt.Chart(data=df_target)
+ch_tgt = alt.Chart(data=df_target.sample(frac=0.1))
 ch_pre = ch_tgt.encode(x=alt.X(tgt_dict[tgt], bin=alt.Bin(maxbins=55), title=f'{tgt} raw'), y='count()').mark_bar()
 ch_after = ch_tgt.encode(x=alt.X(f'Log_{tgt}', bin=alt.Bin(maxbins=55), title=f'{tgt} after log-transform'),
                          y='count()').mark_bar()
 ch_tgt_all = ch_pre | ch_after
 st.write(ch_tgt_all)
-st.header('Model configuration')
+st.header('\N{gear} Model configuration')
 st.write(modelconf_blurb)
-st.header('Model result exploration')
+st.header('\U00002139 Model result exploration')
 st.write(
     """
 Lets analyse first the residuals: we need to make sure our model has at least some predictive power, and is better 
@@ -159,16 +161,19 @@ oof_preds = oof_preds[oof_preds[f'{tgt_dict[tgt]}'] > 0.5]
 
 oof_preds[f'log_{tgt_dict[tgt]}'] = np.log1p(oof_preds[f'{tgt_dict[tgt]}'])
 oof_preds[f'log_gt_{tgt_dict[tgt]}'] = np.log1p(oof_preds[f'gt_{tgt_dict[tgt]}'])
-oof_preds = oof_preds.drop_duplicates(subset = [f'log_{tgt_dict[tgt]}'])
+oof_preds = oof_preds.drop_duplicates(subset=[f'log_{tgt_dict[tgt]}'])
 
-ch_oof = alt.Chart(oof_preds).encode(x=alt.X(f'{tgt_dict[tgt]}',title='Pred'), y=alt.Y(f'gt_{tgt_dict[tgt]}',title='Target') ).mark_point(filled=True, opacity=0.4)
-ch_oof_log = alt.Chart(oof_preds).encode(x=alt.X(f'log_{tgt_dict[tgt]}',title='Log Pred'),
-                                         y=alt.Y(f'log_gt_{tgt_dict[tgt]}',title='Log Target')).mark_point(filled=True, opacity=0.4)
+ch_oof = alt.Chart(oof_preds.sample(frac=0.1)).encode(x=alt.X(f'{tgt_dict[tgt]}', title='Pred'),
+                                     y=alt.Y(f'gt_{tgt_dict[tgt]}', title='Target')).mark_point(filled=True,
+                                                                                                opacity=0.4)
+ch_oof_log = alt.Chart(oof_preds.sample(frac=0.1)).encode(x=alt.X(f'log_{tgt_dict[tgt]}', title='Log Pred'),
+                                         y=alt.Y(f'log_gt_{tgt_dict[tgt]}', title='Log Target')).mark_point(filled=True,
+                                                                                                            opacity=0.4)
 
 st.write(ch_oof | ch_oof_log)
 
 st.write(model_blurb)
-st.header(f'Feature importance for {tgt}')
+st.header(f'\N{exclamation mark} Feature importance for {tgt}')
 st.write(feat_imp_blurb)
 shap_tgt = shaps[tgt_dict[tgt]]
 # st.write(shaps[0])
@@ -181,9 +186,24 @@ shap.summary_plot(shap_tgt['shap_values'], shap_tgt['X_train'], show=False, plot
                   max_display=10)
 # fig, ax = plt.gcf(), plt.gca()
 st.pyplot(bbox_inches="tight", dpi=200)
-st.header(f'Partial Dependence Plots for {pdp_feature}')
+st.header(f'\N{sparkle} Partial Dependence Plots for {pdp_feature}')
 shap.dependence_plot(pdp_feature, shap_tgt['shap_values'], shap_tgt['X_train'], xmin='percentile(2)',
                      xmax='percentile(97)', show=False, alpha=0.6)
 st.pyplot(bbox_inches="tight", dpi=200)
-st.header('What could be done next / the value of the model')
+st.header('\U000023E9 Next steps & afterword on the value of the model')
+n_cl = 40
+r2_dict = dict(zip(np.arange(n_cl), np.random.beta(a=5, b=7, size=n_cl)))
+km = KMeans(n_clusters=n_cl)
+km.fit(df_latlong[[latlong_cols[0], latlong_cols[1]]])
+df_latlong['cluster'] = km.predict(df_latlong[[latlong_cols[0], latlong_cols[1]]])
+df_latlong['R2'] = df_latlong['cluster'].apply(lambda x: r2_dict[x])
+
+# selector_cl = alt.selection_interval(encodings=['x', 'y'], empty='all')
+ch_cluster = alt.Chart(data=df_latlong.sample(frac=0.05), width=600, height=400).encode(
+    x=alt.Longitude(latlong_cols[0], scale=alt.Scale(domain=(vmin[0], vmax[0]))),
+    y=alt.Latitude(latlong_cols[1], scale=alt.Scale(domain=(vmin[1], vmax[1]))),
+    color=alt.Color('R2', scale=alt.Scale(scheme='viridis')),
+).mark_point(filled=True, size=150).interactive()
+
 st.write(follow_up_blurb)
+st.altair_chart(ch_cluster,width=700)
