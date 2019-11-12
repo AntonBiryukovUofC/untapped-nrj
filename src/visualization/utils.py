@@ -1,4 +1,7 @@
 modelling_approach = """
+
+#### Regression
+
 In this exercise we are tasked with predicting an Initial Production (IP) of an unconventional wells drilled in Western Canadian
 Sedimentary Basin (WCSB) over several decades. Since an unconventional well rarely produces a single phase liquid, 
 we are provided with IP values for Oil, Gas and Water. As a result the problem becomes that of multi-output regression:
@@ -24,6 +27,12 @@ and models may not necessarily be good at extrapolating when trained on one vint
 how good/bad is a model at predicting performance in the future, and how to make it depend on the features that contribute most towards metric score in that scenario.
 
 Progress tracking and code version control was done via GitHub - that allows for reproducibility via marking commits with good score and reverting when/if necessary.
+
+#### Classification 
+
+Most of the approach above applies, since the datasets provided were pretty much identical, except for the size/covered time periods. Classification dataset is a lot bigger, but
+the techniques above are still valid, except that our target is now a label (Abandoned|Active|Suspended). Our model result analysis will also change from the residuals to confusion matrices.
+
 """
 
 feature_engineering = """
@@ -36,9 +45,12 @@ This helps a model in case of categorical feature with a high proportion of uniq
 - Well length was also calculated using drilling days and metres drilled per day information
 - Proppant intensities historically have generally been increasing - therefore we kept `SpudDate` as a proxy for proppant and other technologies that vary with time
 - Some of the continuous columns (`DrillingDays`,`GroundElevation`) had large outlier values - a potential error while data gathering, which were clipped to a chosen quantile (5%-95%) range.
+- For classification & regression, pair-wise date differences were calculated. A difference between a `StatusDate` and `SurfAbandonDate` helps pinpoint old wells, that
+are more likely to be labeled `Abandoned`, as well as those wells that recently went into production, likely to be flagged as `Active`  
 """
 
 modelconf_blurb = """
+#### Regression & Classification
 As a go-to model we picked an implementation of Gradient Boosted Trees Machine - a LightGBM, which proved itself successfull in multiple competitions. The algorithm benefits from a highly -efficient
 C++ implementation, and is well parallelized, which makes it a great candidate for quick prototyping and experimentation.
 
@@ -55,13 +67,15 @@ future performance (or at least closer to it, as opposed to random subsetting)
 intro_blurb = """
 The purpose of this little webapp is threefold:
 
-1. Introduce a reader to the modelling approach used in the Regression part of the Untapped challenge
+1. Introduce a reader to the modelling approach used in the Regression & Classification part of the Untapped challenge
 2. Discuss in brief feature engineering, a class of models, and a cross-validation strategy employed at modelling stage
 3. Analyze model performance (residuals, complexity of the inference process), and illustrate individual impact of 
 selected features on a model prediction.  
 """
 
 target_transform_blurb = """
+#### Regression
+
 It was demonstrated that in oil and gas industry, the distribution of well production values has long tails. 
 This phenomenon is not unique for well production - a distribution of rainfall and earthquake magnitudes have a similar property.
 If we train a model using raw target values trying to minimize RMSE, a large relative error on a smaller number will be given the same weight as small relative error on a large number.
@@ -96,6 +110,15 @@ class LogLGBM(LGBMRegressor):
         return preds
 ```
 
+#### Classification
+
+In classification the target is provided as a class ID, and the distribution of classes is rather balanced. Therefore no transform / resampling was applied.
+However, a problem with the classification is that the balance of classes is time-dependent: obviously when a field is in early development, none of the wells are abandoned,
+and vice versa - when a field is really old with no activity, then most of the wells will be abandoned. Therefore the model trained on a random sample over time will have
+very questionable forecasting abilities.
+
+
+
 """
 
 model_blurb = """ We can demonstrate model results using residual plots and individual model prediction break-downs, and feature importances.
@@ -105,7 +128,10 @@ Using SHAP method, we attempt at explaining at what feature values caused the mo
 If we aggregate SHAP explanations over the dataset, we can get an idea of average feature importance - that is explanations in **global sense**.
 """
 
-feat_imp_blurb = """Feature importance plot shows features in the order of decreasing importance. As mentioned earlier, 
+feat_imp_blurb = """
+#### Regression
+
+Feature importance plot shows features in the order of decreasing importance. As mentioned earlier, 
 `Max BOE` is a top feature due to the fact that it really *leaks* the target.
 That is, it is strongly correlated to the target values, however may not be available in the reality (we simply do not
  know `Max BOE` prior to drilling, same applies to IP). 
@@ -119,7 +145,31 @@ to **positively correlate with maximum of production**, as well as **increase as
  captured in the figure. 
 """
 
+
+classification_fi_blurb ="""
+#### Classification
+
+
+Similar to regression, features are shown here in the order of decreasing importance (i.e. their impact on a particular class probability, shown by a colored bar).
+A brief examination of the feature importance plot and probability dependency plot for each class (e.g. how probability of 'Abandoned' class changes w.r.t. Max BOE value)
+ may bring you to the following, quite reasonable conclusions:
+ 
+- Non-NA `Max BOE` suggests that a well is still active (most likely because the number is available for later spud date wells
+
+
+- The closer time difference between a `SurfAbandonDate` and a `StatusDate` is to 0, the more likely that a well is abandoned (there's no more status updates after a well is Abandoned)
+
+
+- For some operators (= certain values in `CurrentOperatorParent`) the game of drilling in the Viking Basin is over, 
+    as you might see by elevated chances of wells being abandoned if they belong to those operators.
+        
+"""
+
 follow_up_blurb = """
+
+#### Regression
+
+
 Since the **high-score models** currently heavily **rely on `Max BOE`**, we are afraid there is **not much practical use** to the models created.
 The problem is that `Max BOE` **is not available before the well is drilled**, as that is the time
 when a prediction of IP is desired. Thus using this feature in modelling is a technically a `target leak` and should be avoided if 
@@ -134,6 +184,18 @@ risky, and could be given a higher discount when economical analysis is performe
 We could also quantitatively analyze effectiveness of completions practices and figure out which one leads to better IPs / EURs,
 and help completions engineers run the jobs in a more sustainable manner (i.e. use less proppant if the excessive 
 intensity is no longer justified by a forecasted increase in production)
+
+#### Classification
+
+Similar to the aforementioned issues, the models that score high in this competition are quite useless, since they directly use leaking proxies for the target, such as `SurfAbandonDate`.
+We find it difficult to find a reasonable practical application for the models that score high on the leaderboard.
+If that feature were to be eliminated, then the model ends up relying on an operator and their historical activity in the region. We still are facing a problem of a model
+having no **predict-in-the-future** capabilities, since the dataset in its current current form is rather static (i.e. none of the columns are time-dependent).
+
+However, if the dataset had time dependent features (days since a closure event, or days on production in the last 365
+ days, etc.) , it would be interesting to develop a model that predicts days till abandonment. We could get the 
+ probabilities of a well to be abandoned in the next N months. The main value here is to have this probability change
+  over time, thus allowing the user to quickly identify areas where a large population is likely to be abandoned.
 """
 
 

@@ -15,7 +15,7 @@ project_dir = Path(__file__).resolve().parents[2]
 sys.path.insert(0, '../../')
 sys.path.insert(0, project_dir)
 from src.visualization.utils import intro_blurb, feature_engineering, modelling_approach, model_blurb, modelconf_blurb, \
-    feat_imp_blurb, target_transform_blurb, follow_up_blurb
+    feat_imp_blurb, target_transform_blurb, follow_up_blurb, classification_fi_blurb
 # from src.models.train_model_with_val_feat_select_boxcox import LogLGBM
 import pandas as pd
 import numpy as np
@@ -114,10 +114,10 @@ st.write(
     f'The effect of *bigger fracs* over time is more evident if we plot Max BOE vs time - there is clearly a drift '
     f'towards higher values. Wells production distribution has long tails - '
     f'therefore logarithm of Max BOE is shown below. Compare that with a trend in target IP {tgt} we need to predict.')
-ch_boe = alt.Chart(df_latlong.sample(frac=0.1), width=400).encode(x=alt.X('yearmonth(SpudDate_dt)', scale=alt.Scale(zero=False)),
+ch_boe = alt.Chart(df_latlong.sample(frac=0.3), width=400).encode(x=alt.X('yearmonth(SpudDate_dt)', scale=alt.Scale(zero=False)),
                                                  y=alt.Y(latlong_cols[-2], scale=alt.Scale(type='log')),
                                                  color='LengthDrill').mark_point(filled=True).interactive()
-ch_tgt = alt.Chart(df_train.sample(frac=0.1), width=400).encode(x=alt.X('yearmonth(SpudDate_dt)', scale=alt.Scale(zero=False)),
+ch_tgt = alt.Chart(df_train.sample(frac=0.3), width=400).encode(x=alt.X('yearmonth(SpudDate_dt)', scale=alt.Scale(zero=False)),
                                                y=alt.Y(tgt_dict[tgt], scale=alt.Scale(type='log')),
                                                color='LengthDrill').mark_point(filled=True).interactive()
 st.write(ch_boe | ch_tgt)
@@ -190,6 +190,11 @@ st.header(f'\N{sparkle} Partial Dependence Plots for {pdp_feature}')
 shap.dependence_plot(pdp_feature, shap_tgt['shap_values'], shap_tgt['X_train'], xmin='percentile(2)',
                      xmax='percentile(97)', show=False, alpha=0.6)
 st.pyplot(bbox_inches="tight", dpi=200)
+
+st.write(classification_fi_blurb)
+st.image('./fi_Class_1.png',width=1000)
+st.image('./fi_Class_2.png',width=1000)
+
 st.header('\U000023E9 Next steps & afterword on the value of the model')
 n_cl = 40
 r2_dict = dict(zip(np.arange(n_cl), np.random.beta(a=5, b=7, size=n_cl)))
