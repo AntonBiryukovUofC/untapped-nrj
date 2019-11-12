@@ -58,6 +58,19 @@ def get_shap():
             shap[tgt] = pickle.load(f)
     return shap
 
+st.markdown(
+        f"""
+<style>
+    .reportview-container .main .block-container{{
+        max-width: 1200px;
+    }}
+    .reportview-container .main {{
+    }}
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+
 st.image("https://bracewell.com/sites/default/files/styles/banner/public/practice-banners/Header_OilGasProjects_0.jpg")
 st.write('*Image - courtesy of Bracewell LLP*')
 st.title('\N{writing hand} Model results exploration - Untapped reClaim Challenge')
