@@ -15,13 +15,14 @@ project_dir = Path(__file__).resolve().parents[2]
 sys.path.insert(0, '../../')
 sys.path.insert(0, project_dir)
 from src.visualization.utils import intro_blurb, feature_engineering, modelling_approach, model_blurb, modelconf_blurb, \
-    feat_imp_blurb, target_transform_blurb, follow_up_blurb, classification_fi_blurb
+    feat_imp_blurb, target_transform_blurb, follow_up_blurb, classification_fi_blurb, my_theme
 # from src.models.train_model_with_val_feat_select_boxcox import LogLGBM
 import pandas as pd
 import numpy as np
 
 tgt_dict = dict(zip(['Oil', 'Gas', 'Water'], ['Oil_norm', 'Gas_norm', 'Water_norm']))
-
+alt.themes.register('my_theme',my_theme)
+alt.themes.enable('my_theme')
 
 @st.cache(show_spinner=True)
 def get_data():
