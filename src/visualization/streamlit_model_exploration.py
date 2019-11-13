@@ -82,7 +82,7 @@ shaps = get_shap()
 
 # models = get_models()
 
-st.sidebar.header('\N{gear} Parameters of a model')
+st.sidebar.header('\N{gear} Model parameters')
 tgt = st.sidebar.selectbox('Target of prediction', options=list(tgt_dict.keys()), index=0)
 pdp_feature = st.sidebar.selectbox('Partial Dependence plot Feature', options=shaps[tgt_dict[tgt]]['feature_names'],
                                    index=len(shaps[tgt_dict[tgt]]['feature_names']) - 1)
