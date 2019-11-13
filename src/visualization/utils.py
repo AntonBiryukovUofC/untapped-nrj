@@ -1,6 +1,6 @@
 
 
-modelling_approach = """
+pre_pic = """
 
 #### Regression
 
@@ -8,7 +8,9 @@ In this exercise we are tasked with predicting an Initial Production (IP) of an 
 Sedimentary Basin (WCSB) over several decades. Since an unconventional well rarely produces a single phase liquid, 
 we are provided with IP values for Oil, Gas and Water. As a result the problem becomes that of multi-output regression:
 that is, given a set of columns (features), predict **not one, but several targets (Oil, Gas and Water IPs)**.
+"""
 
+post_pic = """
 The modelling approach can be conceptualized as the following iterative process:
 
 1. Analyze the input features, and determine variables that should provide higher/lower predictive power
@@ -29,7 +31,12 @@ and models may not necessarily be good at extrapolating when trained on one vint
 how good/bad is a model at predicting performance in the future, and how to make it depend on the features that contribute most towards metric score in that scenario.
 
 Progress tracking and code version control was done via GitHub - that allows for reproducibility via marking commits with good score and reverting when/if necessary.
+"""
 
+modelling_approach_reg =[pre_pic,post_pic]
+
+
+modelling_approach_class = """
 #### Classification 
 
 Most of the approach above applies, since the datasets provided were pretty much identical, except for the size/covered time periods. Classification dataset is a lot bigger, but
