@@ -137,7 +137,8 @@ ch_map = ch_base.encode(
     x=alt.Longitude(latlong_cols[0], scale=alt.Scale(domain=(vmin[0], vmax[0]))),
     y=alt.Latitude(latlong_cols[1], scale=alt.Scale(domain=(vmin[1], vmax[1]))),
     column='Split',
-    color=alt.condition(selector, 'Split', alt.value('lightgray'))).mark_point(filled=True)
+    color=alt.condition(selector, 'Split', alt.value('lightgray')),
+    opacity=alt.condition(selector, alt.value(0.99), alt.value(0.05))).mark_point(filled=True)
 
 ch_time_component = ch_base.add_selection(selector).encode(
     x=alt.X('yearmonth(SpudDate_dt)', scale=alt.Scale(zero=False)),
