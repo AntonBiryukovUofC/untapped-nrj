@@ -20,16 +20,6 @@ The modelling approach can be conceptualized as the following iterative process:
 5. Create a Pipeline of feature generation with model training to make sure feature generation process uses training data ONLY
 6. Train a model, analyze residuals, feature importance, compare with your expectations in 1, and rinse-repeat the process using new knowledge. 
 
-An important note - for the model to be useful in practice, it should be trained in a reality-reflecting scenario. That is,
-if the data has a temporary character (i.e. Spud Date of the real test data is only increasing, or any other trends in features related to time),
-the cross-validation technique employed should reflect that. Depending on the application of this model, the random train-test split used by organizers
-might be an erroneous approach to estimate a model's predictive power, as the new data will not be coming randomly.
-
-Indeed, wells are not drilled in a random pattern occuring randomly in time and space - E&P companies tend to over-develop good reservoir, and under-develop 
-areas of poor production. Moreover, the underlying features might also change over time (think about HZ Length, Proppant used, various technologies of completion),
-and models may not necessarily be good at extrapolating when trained on one vintage of wells and applied on the other. It is this performance that we are often interested in:
-how good/bad is a model at predicting performance in the future, and how to make it depend on the features that contribute most towards metric score in that scenario.
-
 Progress tracking and code version control was done via GitHub - that allows for reproducibility via marking commits with good score and reverting when/if necessary.
 """
 
@@ -208,3 +198,20 @@ However, if the dataset had time dependent features (days since a closure event,
 """
 
 
+cv_blurb = """
+
+An important note - for the model to be useful in practice, it should be trained in a reality-reflecting scenario. That is,
+if the data has a temporary character (i.e. Spud Date of the real test data is only increasing, or any other trends in features related to time),
+the cross-validation technique employed should reflect that. Depending on the application of this model, the random train-test split used by organizers
+might be an erroneous approach to estimate a model's predictive power, as the new data will not be coming randomly.
+
+Indeed, wells are not drilled in a random pattern occuring randomly in time and space - E&P companies tend to over-develop good reservoir, and under-develop 
+areas of poor production. Moreover, the underlying features might also change over time (think about HZ Length, Proppant used, various technologies of completion),
+and models may not necessarily be good at extrapolating when trained on one vintage of wells and applied on the other. It is this performance that we are often interested in:
+how good/bad is a model at predicting performance in the future, and how to make it depend on the features that contribute most towards metric score in that scenario.
+
+
+Notice an evidently randomized split between the train/test/validation datasets and a clearly
+non-stationary HZ length distribution in the figure below. Try selecting different windows along the time 
+axis to see the distribution of selected wells around the basin (*very non-random*)
+"""

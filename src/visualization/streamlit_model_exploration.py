@@ -16,7 +16,7 @@ sys.path.insert(0, '../../')
 sys.path.insert(0, project_dir)
 from src.visualization.utils import intro_blurb, feature_engineering, model_blurb, modelconf_blurb, \
     feat_imp_blurb, target_transform_blurb, follow_up_blurb, classification_fi_blurb, modelling_approach_class, \
-    modelling_approach_reg
+    modelling_approach_reg, cv_blurb
 # from src.models.train_model_with_val_feat_select_boxcox import LogLGBM
 import pandas as pd
 import numpy as np
@@ -120,9 +120,11 @@ st.header('\N{hammer and pick} Modelling approach')
 st.write(modelling_approach_reg[0])
 st.image('https://github.com/AntonBiryukovUofC/untapped-nrj/raw/master/src/visualization/regression-slide.png',width=1000)
 st.write('*Regression in brief*')
-st.write(modelling_approach_reg[1])
 st.write(modelling_approach_class)
 st.image('https://github.com/AntonBiryukovUofC/untapped-nrj/raw/master/src/visualization/classification-slide.png',width=1000)
+st.write('*If you can do Regression, then you can do classification!*')
+
+st.write(modelling_approach_reg[1])
 
 latlong_cols = ['Surf_Longitude', 'Surf_Latitude', 'LengthDrill', 'haversine_Length', '_Max`Prod`(BOE)', 'SpudDate_dt']
 vmin = [df_train[x].min() * 0.999 for x in latlong_cols[0:len(latlong_cols) - 1]]
@@ -170,9 +172,7 @@ st.write(ch_tgt_all)
 
 
 st.header('Data split, visualized')
-st.write('Notice an evidently randomized split between the train/test/validation datasets. Notice a clearly '
-         'non-stationary HZ length distribution in the figure below. Try selecting different windows along the time '
-         'axis to see the distribution of selected wells around the basin (*very non-random*)')
+st.write(cv_blurb)
 
 # Add selector:
 selector = alt.selection_interval(encodings=['x'], empty='all')
