@@ -1,27 +1,4 @@
-def my_theme():
-    return {
-        'config': {
-            'view': {
-                'height': 300,
-                'width': 400,
-            },
-            'mark': {
-                'color': 'black',
-                'fill': 'black'
-            },
-            'title':{
-                'fontSize':14
-            },
-            'axis':{
-                'labelFontSize':13,
-                "titleFontSize":15
-            },
-            'header':{
-                "labelFontSize":18,
-                "titleFontSize":18
-            }
-        }
-    }
+
 
 modelling_approach = """
 
